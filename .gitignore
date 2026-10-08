@@ -1,0 +1,28 @@
+# Local Pi runtime state
+.atl/
+
+# Research and investigation outputs
+investigaciones/
+
+# Environment files (keep .env.example templates)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Docker Compose local volumes
+docker_compose/volumes/
+
+# Go build artifacts and binaries
+core/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# OS files
+.DS_Store
+Thumbs.db

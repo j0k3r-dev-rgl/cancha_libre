@@ -9,50 +9,60 @@ metadata:
 
 ## Activation Contract
 
-Use this skill when exposing or modifying Go HTTP handlers, documenting API contracts, generating OpenAPI/Swagger specifications, or synchronizing backend response/request types with the Next.js frontend.
+Use this skill when exposing or modifying Go HTTP handlers, documenting API contracts, generating OpenAPI specifications, or synchronizing backend response/request types with Next.js in CanchaLibre.
 
 ## Hard Rules
 
-- **Standardized Swag Annotations in Go**:
-  - Every HTTP handler in `adapters/inbound/http` must contain complete `swaggo/swag` declarative comments (`@Summary`, `@Description`, `@Tags`, `@Accept`, `@Produce`, `@Param`, `@Success`, `@Failure`, `@Router`).
-- **Explicit DTOs Only**:
-  - Request bodies and responses must use explicit Go structs with `json` tags and Swagger documentation types.
-  - Prohibited: using `map[string]interface{}`, `any`, or unexported anonymous structs in API boundaries.
-  - Error responses must follow the RFC 7807 Problem Details schema across all endpoints.
-- **Automated Type Generation**:
-  - The OpenAPI spec is generated in the Go backend via `swag init`.
-  - The Next.js frontend must generate TypeScript types from the generated spec via `openapi-typescript` into `@repo/types` or `apps/web/src/types/api.generated.ts`.
-  - Manual authoring of API response or request interfaces in TypeScript is strictly forbidden.
-- **Contract Drift Prevention**:
-  - Any backend endpoint modification must run `swag init` and re-run frontend type generation as a single atomic change before committing.
+- **OpenAPI 3.1 Target & Generator Validation Prerequisite**:
+  - The authoritative API specification target is OpenAPI 3.1.
+  - **Toolchain Prerequisite**: `swaggo/swag` natively targets Swagger 2.0. Do not silently relax the specification target to 2.0, do not silently switch to an unapproved third-party generator, and do not assert that current `swag` produces OpenAPI 3.1 without verified version and output evidence.
+  - Mark unvalidated generator tooling as blocking automated contract generation until toolchain compatibility is established. Existing `swag init` commands are retained only as a conditional legacy workflow after verifying tool version and output schema.
+- **Explicit DTOs and RFC 7807 Problem Details**:
+  - Request bodies and responses in bounded context HTTP adapters (`internal/modules/{context}/adapters/inbound/http`) must use explicit Go structs with `json` tags.
+  - Prohibited: `map[string]interface{}`, `any`, or unexported anonymous structs in API boundaries.
+  - All error responses must adhere strictly to the RFC 7807 Problem Details schema (`type`, `title`, `status`, `detail`, `instance`).
+- **Automated Type Generation & Repository Path Reality**:
+  - Frontend TypeScript types must be generated automatically from the validated OpenAPI specification. Manual authoring or editing of API request/response types in TypeScript is strictly forbidden.
+  - Repository layout uses `core/` (Go backend) and `front/` (Next.js frontend). Never invent or reference non-existent paths like `apps/api` or `apps/web`.
+  - Always discover existing package scripts in `front/package.json` before recommending type generation; do not invent unverified script commands.
+- **Scope Discipline and Drift Prevention**:
+  - Backend-only work does not authorize implementing unrelated frontend features, but type/contract synchronization remains mandatory whenever API endpoints change and generation tooling is enabled.
+  - Endpoint modifications and corresponding generated contract types must be verified together to prevent contract drift.
+- **Bounded Context Architecture**:
+  - Bounded contexts follow canonical layout: `internal/modules/{context}/core/{domain,ports,usecase}` and `adapters/{inbound,outbound}` without assuming a fixed context map.
 
 ## Decision Gates
 
-| Task | Required Pattern | Forbidden Pattern |
+| Task / Situation | Required Pattern | Forbidden Pattern |
 | --- | --- | --- |
-| Adding an API endpoint | Add Swag doc tags to handler + run `swag init` | Returning undocumented endpoints or raw JSON maps |
-| Consuming API in Next.js | Import types from `api.generated.ts` | Writing manual TypeScript `interface ApiResponse` |
-| Error handling contract | Return RFC 7807 Problem Details DTO | Returning random plain text or inconsistent error shapes |
-| Type synchronization | Automated script (`pnpm generate:types`) | Copy-pasting Go structs into TypeScript files manually |
+| Documenting API target | Maintain OpenAPI 3.1 target; validate toolchain output | Silently downgrading to Swagger 2.0 or claiming `swag` outputs 3.1 without proof |
+| Generator unvalidated | Treat automated generation as blocked on toolchain selection | Silently switching to arbitrary unvetted tools or faking 3.1 compliance |
+| Specifying payload schemas | Explicit Go DTO structs with `json` field tags | Using `map[string]any`, untyped JSON, or inline anonymous structs |
+| Error response contract | RFC 7807 Problem Details DTO | Returning ad-hoc JSON errors, raw strings, or leaking database internals |
+| Frontend API types | Generate types from validated spec into `front/` | Writing handwritten TypeScript interfaces for backend responses |
+| Executing type generation | Inspect `front/package.json` for real scripts | Inventing non-existent scripts or assuming `apps/web` monorepo paths |
+| Modifying backend endpoint | Synchronize contracts atomically when tooling is active | Leaving contract unsynchronized or branching into unrelated frontend work |
 
 ## Execution Steps
 
-1. In the Go HTTP handler, declare input/output DTOs with `json` and `binding` tags.
-2. Annotate the handler function with standard Swag tags (including 200/201 success and 400/404/409/500 failure codes).
-3. Run `swag init -g cmd/api/main.go -o docs/` to regenerate `swagger.json` and `swagger.yaml`.
-4. In the Next.js package, execute `pnpm generate:types` (running `openapi-typescript ../../apps/api/docs/swagger.json -o src/types/api.generated.ts`).
-5. Ensure Server Actions and frontend components consume the newly generated types.
+1. In the Go bounded context (`internal/modules/{context}/adapters/inbound/http`), declare explicit request and response DTO structs with `json` tags and RFC 7807 error structures.
+2. Annotate HTTP handlers with declarative documentation comments specifying tags, parameters, status codes, and DTO schemas.
+3. Validate OpenAPI generator compatibility: if using `swag` as a conditional legacy workflow, verify generator version and output specification before proceeding. If OpenAPI 3.1 validation fails, flag the toolchain prerequisite as blocking automated generation.
+4. Discover type-generation scripts in `front/package.json` (do not assume pre-configured scripts or `apps/web` paths). Run the validated generation workflow targeting `front/`.
+5. Ensure Server Actions and frontend features consume the generated types without manual type shadowing.
+6. Verify contract synchronization without introducing unrelated frontend feature changes.
 
 ## Output Contract
 
 Return:
-- Updated Swag annotations in Go handlers.
-- Regenerated OpenAPI specification file.
-- Regenerated TypeScript API contract file.
-- Verification that no handwritten API types exist in Next.js.
+- Explicit Go DTOs and RFC 7807 problem details defined for modified endpoints.
+- Handlers documented within bounded context adapters (`internal/modules/{context}/adapters/inbound/http`).
+- Toolchain validation status reported (OpenAPI 3.1 compatibility verified or blocked on tooling evidence).
+- Contract synchronization status confirmed between `core/` and `front/` without manual DTO authoring.
 
 ## References
 
-- Go Swagger tool: `github.com/swaggo/swag`.
-- TS Generator: `openapi-typescript`.
 - Architecture: `.agents/skills/modular-hexagonal-architecture/SKILL.md`.
+- Backend Go Patterns: `.agents/skills/backend-go-patterns/SKILL.md`.
+- Next.js Patterns: `.agents/skills/frontend-nextjs-patterns/SKILL.md`.
+- Server Infrastructure: `.agents/skills/server-infrastructure/SKILL.md`.

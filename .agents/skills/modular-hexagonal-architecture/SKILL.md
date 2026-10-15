@@ -1,6 +1,6 @@
 ---
 name: modular-hexagonal-architecture
-description: "Trigger: architecture, modular monolith, hexagonal, ports and adapters, microservices migration, integrations, inter-module communication. Enforce modular monolith boundaries with per-module hexagonal architecture and decoupled integrations in Go."
+description: "Trigger: architecture, modular monolith, bounded context, hexagonal, ports and adapters, microservices migration, integrations, inter-module communication. Enforce bounded-context modular monolith boundaries with per-context hexagonal architecture and decoupled integrations in Go."
 license: Apache-2.0
 metadata:
   author: gentleman-programming
@@ -9,54 +9,63 @@ metadata:
 
 ## Activation Contract
 
-Use this skill when designing, scaffolding, refactoring, or reviewing any backend module, boundary, port, adapter, or third-party integration in Go for CanchaLibre.
+Use this skill when designing, scaffolding, refactoring, or reviewing backend bounded contexts, module boundaries, ports, adapters, or third-party integrations in Go for CanchaLibre.
 
 ## Hard Rules
 
-- **Module Boundary Isolation**:
-  - Every business area lives in its own root directory (`internal/modules/{module-name}`).
-  - Cross-module database queries (joins across module tables) and direct imports of another module's internal adapters or SQL packages are strictly forbidden.
-- **Per-Module Hexagonal Structure**:
-  - `core/domain`: Pure entities, value objects, domain events, and sentinel errors. Zero framework/infrastructure imports.
-  - `core/ports`:
-    - `inbound.go`: Public interfaces defining use cases exposed to driving actors (HTTP, webhooks, other modules).
-    - `outbound.go`: Interfaces for data stores, external services (Pix, WhatsApp), and event dispatchers.
-  - `core/usecase`: Business logic implementations orchestrating domain and outbound ports.
-  - `adapters/inbound`: HTTP controllers (Chi router `github.com/go-chi/chi/v5`), webhook receivers (validating signatures/payloads), CLI handlers.
-  - `adapters/outbound`: PostgreSQL repositories (`pgx`), third-party clients (WhatsApp Cloud API, Pix PSP), event publishers.
-- **Inter-Module Integration Contract**:
-  - **Synchronous**: Module A calls Module B strictly through Module B's public inbound port interface. In monolithic mode, wired via Go interfaces in memory. For future microservices, swapped for gRPC/HTTP client adapters with zero Core changes.
-  - **Asynchronous**: Domain events published to an Event Bus interface. In monolithic mode, in-memory channels. For microservices, swapped for RabbitMQ, Kafka, or NATS publishers.
-- **Third-Party Integration Contract (Pix, WhatsApp, etc.)**:
-  - Outbound calls must implement an explicit outbound port. Core code never imports third-party SDKs or HTTP client libraries directly.
-  - Inbound webhooks must be treated as driving adapters that validate security/signatures before delegating to inbound ports.
+- **Bounded Context Module Isolation**:
+  - Each module in `internal/modules/{context}` represents a **bounded context**, not an individual entity or single database table. A bounded context may contain multiple related aggregates and entities that share cohesive business invariants.
+  - Do not assume a pre-fixed context map; design context boundaries around cohesive domain rules and transaction ownership.
+  - Cross-context database queries (joins or foreign keys across context schemas) and direct imports of another context's internal domain, use cases, repositories, or SQL adapters are strictly forbidden.
+- **Per-Context Hexagonal Structure**:
+  - `internal/modules/{context}/core/domain`: Pure entities, aggregates, value objects, domain events, and sentinel errors. Zero framework or infrastructure imports.
+  - `internal/modules/{context}/core/ports`:
+    - `inbound.go`: Public interfaces and portable contract DTOs exposed to driving actors (HTTP, webhooks, CLI, or other bounded contexts).
+    - `outbound.go`: Interfaces for persistence repositories, external services (Evolution API / Baileys, Google Maps), cross-context dependencies, and event dispatchers.
+  - `internal/modules/{context}/core/usecase`: Business workflows orchestrating domain models and outbound ports.
+  - `internal/modules/{context}/adapters/inbound`: HTTP handlers (Chi router `github.com/go-chi/chi/v5`), webhook receivers, CLI commands.
+  - `internal/modules/{context}/adapters/outbound`: PostgreSQL repositories (`pgx/v5`), external API clients (Evolution API, Google Maps), cross-context client adapters, event publishers.
+  - The existing flat skeleton in `core/internal/{domain,usecase,adapter}` is legacy bootstrap scaffolding; do not use it as a template for new bounded contexts.
+- **Inter-Context Integration Contract**:
+  - **Synchronous**: Consumer context A defines its own outbound port in `A/core/ports/outbound.go`. An outbound adapter in `A/adapters/outbound` calls provider context B's public inbound port (`B/core/ports/inbound.go`), Wired at the composition root (`cmd/api`) with zero circular dependencies.
+  - **Asynchronous**: Domain events are published via an outbound port. In monolithic runtime, use bounded in-process Go channels and worker pools. In-memory channels are volatile and not durable across restarts; operations requiring guaranteed delivery or timed retries (e.g., WhatsApp notice retries or expiration) must persist state in PostgreSQL rather than relying solely on volatile channels.
+  - **Future Service Extraction**: Bounded-context isolation and contract DTOs prepare modules for potential extraction into independent services, but extraction is a design goal, not a zero-effort guarantee. Extracting a context later requires explicit design for network transport, distributed consistency/sagas, and operational isolation.
+- **Third-Party Integration Contract (Evolution API, Google Maps)**:
+  - Outbound integrations implement explicit outbound ports. Core packages never import third-party SDKs or HTTP client libraries directly.
+  - Inbound webhooks act as driving adapters that validate credentials/signatures before delegating to inbound ports.
+  - Do not introduce payment gateway or PSP adapters; CanchaLibre operates strictly in ARS with manual staff payment recording.
 
 ## Decision Gates
 
 | Need | Required Pattern | Forbidden Pattern |
 | --- | --- | --- |
-| Module A needs data from Module B | Call Module B's public Inbound Port interface | Direct SQL join or importing Module B's repository |
-| Calling external API (Pix, WhatsApp) | Define outbound port in `core/ports` and implement in `adapters/outbound/external` | Calling external HTTP endpoints inside usecase or domain |
-| Handling external Webhooks | Adapter in `adapters/inbound/webhook` -> validate -> call inbound usecase port | Business logic inside webhook handler |
-| Inter-module notifications | Publish domain event to Event Bus interface | Direct circular dependency between modules |
+| Defining module granularity | Group cohesive aggregates/entities into a bounded context (`internal/modules/{context}`) | Creating a separate module per table/entity or using a flat global `internal/domain` |
+| Context A needs capability from Context B | Define outbound port in A; adapter calls B's public inbound port wired at composition root | Direct cross-schema SQL join, importing B's repository, or importing B's internal domain types |
+| Calling external API (Evolution, Google Maps) | Define outbound port in `core/ports` and implement in `adapters/outbound` | Calling external HTTP endpoints inside `core/usecase` or `core/domain` |
+| Monolith events & background retries | Bounded in-process channels for immediate dispatch + DB persistence for durable retries | Relying solely on volatile in-memory channels for state that must survive process restarts |
+| Future microservice extraction | Preserve strict context contracts and schema isolation; design distributed consistency when extracting | Assuming network extraction requires zero consistency, transaction, or operational changes |
 
 ## Execution Steps
 
-1. Scaffold module tree: `core/{domain,ports,usecase}` and `adapters/{inbound,outbound}`.
-2. Define domain entities and business errors in `core/domain`.
-3. Declare use case interfaces in `core/ports/inbound.go` and secondary dependencies in `core/ports/outbound.go`.
-4. Implement business workflows in `core/usecase` depending only on interfaces.
-5. Implement adapters for persistence (`pgx`), integrations (Pix, WhatsApp), and delivery (HTTP Chi, webhooks).
-6. Wire dependencies in module bootstrap (`wire.go` or module constructor) and register public inbound ports.
+1. Identify the bounded context and its cohesive aggregates/invariants before creating packages.
+2. Scaffold `internal/modules/{context}/core/{domain,ports,usecase}` and `adapters/{inbound,outbound}`.
+3. Define pure domain entities, aggregates, and sentinel errors in `core/domain`.
+4. Declare public inbound contracts in `core/ports/inbound.go` and secondary dependencies in `core/ports/outbound.go` using portable contract types.
+5. Implement business workflows in `core/usecase` depending only on `core/domain` and `core/ports`.
+6. Implement persistence (`pgx/v5`), external integrations, cross-context adapters, and HTTP handlers (`go-chi/chi/v5`) under `adapters/`.
+7. Wire dependencies and cross-context adapters in the composition root (`cmd/api`) without circular imports.
 
 ## Output Contract
 
 Return:
-- Verified per-module hexagonal directory structure.
-- Inbound and outbound ports clearly separated.
-- Verification that no inter-module database joins or illegal adapter imports exist.
+- Bounded context directory structure verified under `internal/modules/{context}`.
+- Inbound and outbound ports separated with portable contract types and zero cross-context internal imports.
+- Verification that no cross-schema database joins, foreign keys, or unapproved PSP/Cloud API adapters exist.
+- Durability boundary documented when background events or retries are involved.
 
 ## References
 
-- Target: Go 1.24+, Modular Monolith ready for microservices extraction, Chi router (`github.com/go-chi/chi/v5`).
+- Target: Go 1.24+, Modular Monolith by Bounded Context, Chi router (`github.com/go-chi/chi/v5`).
+- Backend Go Patterns: `.agents/skills/backend-go-patterns/SKILL.md`.
+- Database Isolation: `.agents/skills/database-postgres-patterns/SKILL.md`.
 - Server Limits: `.agents/skills/server-infrastructure/SKILL.md`.

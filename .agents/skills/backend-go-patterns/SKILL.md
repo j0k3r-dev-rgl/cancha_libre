@@ -1,6 +1,6 @@
 ---
 name: backend-go-patterns
-description: "Trigger: backend, go, golang, api, usecase, domain, repository, reservation logic, concurrency. Enforce Clean Architecture, transactional safety, and concurrency patterns in the Go backend."
+description: "Trigger: backend, go, golang, api, usecase, domain, repository, reservation logic, concurrency. Enforce per-context hexagonal boundaries, transactional safety, and concurrency patterns in the Go backend."
 license: Apache-2.0
 metadata:
   author: gentleman-programming
@@ -9,58 +9,67 @@ metadata:
 
 ## Activation Contract
 
-Use this skill when developing, refactoring, or reviewing Go backend code for CanchaLibre, including domain entities, use cases, HTTP handlers, and database interactions.
+Use this skill when developing, refactoring, or reviewing Go backend code for CanchaLibre, including domain models, use cases, HTTP handlers, concurrency guards, and database interactions.
 
 ## Hard Rules
 
-- **Clean Layered Boundaries**:
-  - `internal/domain`: Pure business entities (Cancha, Turno, Reserva, Deporte), value objects, repository interfaces, and sentinel domain errors. Zero external dependencies.
-  - `internal/usecase`: Business workflows orchestrating domain models and ports. Never import HTTP or SQL libraries here.
-  - `internal/adapter/postgres`: Repository implementations using `github.com/jackc/pgx/v5/pgxpool`.
-  - `internal/adapter/http`: HTTP handlers (Chi router), input DTO parsing/validation, and RFC 7807 Problem Details responses.
+- **Per-Context Hexagonal Boundaries**:
+  - Organize backend business code by bounded context under `internal/modules/{context}`:
+    - `core/domain`: Pure entities, aggregates, value objects, and sentinel domain errors. Zero external dependencies.
+    - `core/ports`: Inbound and outbound interfaces and contract DTOs.
+    - `core/usecase`: Business workflows orchestrating domain models and outbound ports. Never import HTTP or SQL driver packages here.
+    - `adapters/outbound/postgres`: Repository implementations using `github.com/jackc/pgx/v5/pgxpool`.
+    - `adapters/inbound/http`: HTTP handlers (Chi router), request DTO parsing/validation, and RFC 7807 Problem Details responses.
+  - Note: Existing flat directories in `core/internal/{domain,usecase,adapter}` are initial bootstrap scaffolding; new domain features must follow the bounded-context layout in `.agents/skills/modular-hexagonal-architecture/SKILL.md`.
 - **HTTP Routing with Chi (`github.com/go-chi/chi/v5`)**:
-  - All HTTP routing must use Chi router (`go-chi/chi/v5`), maintaining 100% compatibility with standard `http.HandlerFunc(w http.ResponseWriter, r *http.Request)`.
+  - All HTTP routing uses Chi (`go-chi/chi/v5`) with standard `http.HandlerFunc(w http.ResponseWriter, r *http.Request)`.
   - Use standard Chi middlewares (`chimiddleware.RequestID`, `chimiddleware.RealIP`, `chimiddleware.Logger`, `chimiddleware.Recoverer`, `chimiddleware.Timeout`).
-  - Route URL parameters must be extracted via `chi.URLParam(r, "param")`.
-  - Prohibited: Heavy frameworks with proprietary context abstractions (`gin.Context`, `echo.Context`, `fiber.Ctx`) or `fasthttp`-based engines (Fiber) that break standard `net/http` compatibility or risk memory buffer corruption.
-- **Double-Booking Guard (Zero Race Conditions)**:
-  - Never trust a simple `SELECT` followed by `INSERT` for reservations.
-  - All booking operations must run inside an explicit transaction (`tx.BeginTx`) using row-level locking (`SELECT ... FOR UPDATE`) or PostgreSQL temporal range exclusion constraints (`tstzrange` with GiST).
+  - Extract route parameters via `chi.URLParam(r, "param")`.
+  - Prohibited: Heavy frameworks with proprietary context abstractions (`gin`, `echo`, `fiber`) or `fasthttp` engines.
+- **Concurrency & Anti-Double Booking Guards**:
+  - Never rely on an unguarded `SELECT` followed by `INSERT`/`UPDATE` for state-changing booking, offer, or limit operations.
+  - Execute competing mutations inside explicit database transactions (`tx.BeginTx`) using row-level locking (`SELECT ... FOR UPDATE`) and PostgreSQL temporal exclusion constraints (`tstzrange` with GiST) where applicable.
+  - Preserve MVP booking semantics: multiple pending requests may coexist for the same offered slot without blocking capacity; confirming a request must atomically occupy the slot, verify the customer has no overlapping confirmed reservation across branches, and close competing pending requests for that slot as unavailable.
 - **Mandatory Context Propagation**:
-  - Every handler, use case, and repository method must accept `ctx context.Context` as its first parameter and pass it down to all I/O calls.
+  - Every handler, use case, port, and repository method must accept `ctx context.Context` as its first parameter and propagate it to all downstream I/O calls.
 - **Resource Discipline (2 vCPU / 8 GB VPS)**:
-  - Configure `pgxpool.Config`: `MaxConns` between 15 and 20, `MinConns: 2`, `MaxConnLifetime: 1h`.
-  - No unbounded goroutine spawning on HTTP requests. Background jobs must use bounded worker pools.
+  - Configure `pgxpool.Config`: `MaxConns` between 15 and 20, `MinConns: 2`, `MaxConnLifetime: 1h` (server `max_connections = 50`).
+  - Never spawn unbounded goroutines on HTTP requests. Background processing must use bounded worker pools with explicit context cancellation; durable timers/retries must persist state in PostgreSQL.
 - **Error Contract**:
-  - Domain defines sentinel errors (e.g., `ErrSlotUnavailable`, `ErrCourtNotFound`).
-  - Handlers map domain errors to standard HTTP status codes (409 Conflict, 404 Not Found, 400 Bad Request). Never expose raw SQL errors to clients.
+  - Define sentinel domain errors in `core/domain` (e.g., `ErrSlotUnavailable`, `ErrCourtNotFound`, `ErrCustomerOverlap`, `ErrPendingLimitExceeded`).
+  - Map domain errors in HTTP adapters to standard status codes (400 Bad Request, 403 Forbidden, 404 Not Found, 409 Conflict, 422 Unprocessable Entity) using RFC 7807 Problem Details. Never expose raw SQL or provider internals.
 
 ## Decision Gates
 
 | Task | Pattern to Apply | Forbidden Pattern |
 | --- | --- | --- |
-| Creating a reservation | Transaction + pessimistic lock / exclusion constraint | Simple read-then-write without row locks |
-| Exposing new API route | DTO struct -> validate -> call Usecase -> map error | Handling DB queries directly inside the HTTP handler |
-| HTTP routing and middleware | Chi (`go-chi/chi/v5`) with standard `http.HandlerFunc` | Heavy frameworks (`Gin`, `Echo`, `Fiber`) or proprietary contexts |
-| Database queries | Raw SQL with `pgx` or `sqlc` | Heavy ORMs that hide query plans and connection lifecycle |
-| Background tasks | Bounded worker pool with channels and context | Bare `go func()` without cancellation or concurrency limits |
+| Placing new domain logic | Bounded context (`internal/modules/{context}/core/...`) | Dumping all domains into a single flat global package |
+| Confirming a reservation | Explicit transaction + row lock / exclusion guard + close competing requests | Unguarded read-then-write or blocking multiple pending requests on a slot |
+| Exposing new API route | Explicit DTO -> validate -> call inbound usecase port -> map error to RFC 7807 | Executing SQL queries or business rules directly inside the HTTP handler |
+| HTTP routing and middleware | Chi (`go-chi/chi/v5`) with standard `http.HandlerFunc` | Frameworks with custom contexts (`Gin`, `Echo`, `Fiber`) |
+| Database queries | Parameterized SQL with `pgx/v5` | Heavy ORMs that obscure query plans, locks, and connection lifecycle |
+| Background tasks | Bounded worker pool with context + DB state for durable retries | Bare `go func()` without lifecycle bounds or volatile-only critical retries |
 
 ## Execution Steps
 
-1. Define or update domain models and repository interfaces in `internal/domain`.
-2. Implement business rules and transaction boundaries in `internal/usecase`.
-3. Implement database queries in `internal/adapter/postgres` using `pgxpool` with parameterized queries.
-4. Wire endpoints in `internal/adapter/http` with strict request validation and Problem Details error responses.
-5. Add unit tests for use cases with mock/fake repositories and integration tests for concurrent booking scenarios.
+1. Define or update domain entities, invariants, and sentinel errors in `internal/modules/{context}/core/domain`.
+2. Declare inbound and outbound port interfaces in `internal/modules/{context}/core/ports`.
+3. Implement business workflows and transaction boundaries in `internal/modules/{context}/core/usecase`.
+4. Implement parameterized PostgreSQL queries in `internal/modules/{context}/adapters/outbound/postgres` using `pgxpool`.
+5. Wire HTTP handlers in `internal/modules/{context}/adapters/inbound/http` with DTO validation and RFC 7807 error mapping.
+6. Register routes and dependencies in the composition root (`cmd/api`) and verify with unit and concurrency integration tests.
 
 ## Output Contract
 
 Return:
-- Files modified adhering to package boundaries.
-- Concurrency protection mechanism verified for booking flows.
-- Context propagation and connection pool settings verified.
+- Files created or modified adhering to per-context hexagonal package boundaries.
+- Transaction and concurrency protection verified for offer, request, and confirmation flows.
+- Context propagation, bounded worker discipline, and `pgxpool` connection settings verified.
+- Domain errors mapped cleanly to RFC 7807 Problem Details responses.
 
 ## References
 
 - Target: Go 1.24+, `pgx/v5`, Chi router (`github.com/go-chi/chi/v5`).
+- Modular Hexagonal Architecture: `.agents/skills/modular-hexagonal-architecture/SKILL.md`.
+- Database Patterns: `.agents/skills/database-postgres-patterns/SKILL.md`.
 - Server Limits: `.agents/skills/server-infrastructure/SKILL.md`.

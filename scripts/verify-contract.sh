@@ -32,9 +32,10 @@ BASE_URL="http://localhost:${PORT}"
 HEALTH_PATH="/health"
 READY_TIMEOUT_SECONDS="${READY_TIMEOUT_SECONDS:-60}"
 # The reset target is whatever the API connects to, so the fingerprint reads the
-# same URL the binary reads. The fallback is config.Load's development default
-# (core/internal/config/config.go); it applies only when the environment is silent.
+# same URL the binary reads. The runner supplies a local fallback for check/boot
+# convenience when the caller environment does not export DATABASE_URL or JWT_SECRET.
 DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@localhost:5435/canchalibre_dev?sslmode=disable}"
+JWT_SECRET="${JWT_SECRET:-dev-only-jwt-secret-must-be-at-least-32-bytes}"
 CHECK_ONLY=0
 
 case "${1:-}" in
@@ -88,16 +89,20 @@ port_busy() {
 # is a single SELECT. With no `psql` client on PATH the evidence is reported as
 # unavailable rather than guessed, and never as passed.
 db_fingerprint() {
-  if ! command -v psql >/dev/null 2>&1; then
-    printf 'unavailable (no psql client on PATH)'
+  local oid=""
+  if command -v psql >/dev/null 2>&1; then
+    oid="$(PGCONNECT_TIMEOUT=5 psql "${DATABASE_URL}" --no-psqlrc --no-password --tuples-only --no-align \
+            --command 'SELECT oid FROM pg_database WHERE datname = current_database()' 2>/dev/null || true)"
+  elif command -v docker >/dev/null 2>&1; then
+    oid="$(docker run --rm -i --network host -e PGCONNECT_TIMEOUT=5 postgres:17-alpine \
+            psql "${DATABASE_URL}" --no-psqlrc --no-password --tuples-only --no-align \
+            --command 'SELECT oid FROM pg_database WHERE datname = current_database()' 2>/dev/null || true)"
+  else
+    printf 'unavailable (no psql client or docker on PATH)'
     return 0
   fi
-  local oid
-  # --no-password keeps a password-less URL from blocking on an interactive
-  # prompt: the probe must fail fast, not wait for a human.
-  if oid="$(PGCONNECT_TIMEOUT=5 psql "${DATABASE_URL}" --no-psqlrc --no-password --tuples-only --no-align \
-            --command 'SELECT oid FROM pg_database WHERE datname = current_database()' 2>/dev/null)" \
-     && [[ -n "${oid}" ]]; then
+  oid="$(printf '%s' "${oid}" | tr -d '[:space:]')"
+  if [[ -n "${oid}" ]]; then
     printf 'oid=%s' "${oid}"
   else
     printf 'absent-or-unreachable'
@@ -128,7 +133,7 @@ if port_busy; then
 else
   REUSED=0
   PRE_FP="$(db_fingerprint)"
-  log "database target ${db_label}; pre-boot fingerprint: ${PRE_FP}"
+  log "database target $(db_label); pre-boot fingerprint: ${PRE_FP}"
   log "booting the API performs the unguarded local reset: the target database is dropped, recreated, re-schemed and reseeded"
   log "building the API from ${CORE_DIR}"
   if ! (cd "${CORE_DIR}" && mise exec -- go build -o "${API_BIN}" ./cmd/api) >"${LOG_FILE}" 2>&1; then
@@ -137,7 +142,7 @@ else
     exit 1
   fi
   log "booting the API on port ${PORT} (log: ${LOG_FILE})"
-  PORT="${PORT}" "${API_BIN}" >"${LOG_FILE}" 2>&1 &
+  PORT="${PORT}" DATABASE_URL="${DATABASE_URL}" JWT_SECRET="${JWT_SECRET}" "${API_BIN}" >"${LOG_FILE}" 2>&1 &
   API_PID=$!
 fi
 

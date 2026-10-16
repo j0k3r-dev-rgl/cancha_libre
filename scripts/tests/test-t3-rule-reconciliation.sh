@@ -64,7 +64,7 @@ chk S4 'grep -q "closes only at 100%" docs/roadmap-backend.md'
 chk S3 '! grep -qE "^  - (edit|write)$" .pi/agents/api-contract-verifier.md'
 chk S3 '[ "$(sed -n "/^tools:/,/^---/p" .pi/agents/api-contract-verifier.md | grep -c "^  - ")" -eq 9 ]'
 chk S5 'grep -q "DATABASE_URL" .pi/agents/api-contract-verifier.md'
-chk S5 'grep -q "DATABASE_URL" core/internal/config/config.go'
+chk S5 'grep -q "DATABASE_URL" core/internal/platform/config/config.go'
 chk S5 '! grep -qE "\"database\"|database\":" .pi/api.json.example .pi/api.json.local.example'
 chk S5 '! grep -rq "api.json.local" .pi/extensions/api-tools/src/'
 

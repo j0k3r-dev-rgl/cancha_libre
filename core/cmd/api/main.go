@@ -11,17 +11,35 @@ import (
 	"syscall"
 	"time"
 
-	adapterhttp "canchalibre/core/internal/adapter/http"
-	"canchalibre/core/internal/config"
+	"canchalibre/core/internal/platform/config"
+	platformhttp "canchalibre/core/internal/platform/http"
+	"canchalibre/core/internal/platform/postgres"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
-	router := adapterhttp.NewRouter()
+	startupCtx, cancelStartup := context.WithTimeout(context.Background(), 30*time.Second)
+	pool, err := postgres.ResetAndConnect(startupCtx, postgres.ResetOptions{
+		DatabaseURL:      cfg.DatabaseURL,
+		SeedTopologyPath: cfg.SeedTopologyPath,
+		AccountsFilePath: cfg.AccountsFilePath,
+	})
+	cancelStartup()
+	if err != nil {
+		slog.Error("failed to reset and seed database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	router, _ := platformhttp.NewRouter()
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),
@@ -31,7 +49,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Server run context with signal interception for graceful shutdown
 	serverCtx, stopServer := context.WithCancel(context.Background())
 
 	sigChan := make(chan os.Signal, 1)

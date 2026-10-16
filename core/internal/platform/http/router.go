@@ -40,8 +40,10 @@ const APIServerURL = "http://localhost:8080"
 // NewRouter constructs the Chi router, installs the RFC 7807 error override and
 // NotFound/MethodNotAllowed fallbacks, registers /health and /api/v1/ping, and
 // returns both the Chi mux and the huma.API instance so modules can register
-// their operations.
-func NewRouter(auditor ...RefusalAuditor) (*chi.Mux, huma.API) {
+// their operations. The platform audits nothing: the identity use cases are the
+// single writer of REFUSED rows, because a transport-level duplicate was the F1
+// defect.
+func NewRouter() (*chi.Mux, huma.API) {
 	InstallErrorOverride()
 
 	r := chi.NewRouter()
@@ -51,9 +53,6 @@ func NewRouter(auditor ...RefusalAuditor) (*chi.Mux, huma.API) {
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.Timeout(30 * time.Second))
-	if len(auditor) > 0 && auditor[0] != nil {
-		r.Use(RefusalAuditMiddleware(auditor[0]))
-	}
 
 	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
 		WriteProblem(w, http.StatusNotFound, TypeNotFound, "The requested resource was not found.")

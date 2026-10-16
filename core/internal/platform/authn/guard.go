@@ -128,9 +128,8 @@ func (g *Guard) AuthenticateRequest(ctx context.Context, authHeader string) (act
 	}, 0, "", nil
 }
 
-// Middleware returns a Huma operation middleware that enforces AuthenticateRequest,
-// records the authenticated account ID for refusal auditing, and injects the
-// verified Principal into the request context.
+// Middleware returns a Huma operation middleware that enforces AuthenticateRequest
+// and injects the verified Principal into the request context.
 func (g *Guard) Middleware(api huma.API) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
 		p, status, probType, err := g.AuthenticateRequest(ctx.Context(), ctx.Header("Authorization"))
@@ -139,7 +138,6 @@ func (g *Guard) Middleware(api huma.API) func(huma.Context, func(huma.Context)) 
 			_ = huma.WriteErr(api, ctx, status, err.Error())
 			return
 		}
-		platformhttp.SetRequestActorID(ctx.Context(), p.AccountID)
 		next(huma.WithContext(ctx, actor.WithPrincipal(ctx.Context(), p)))
 	}
 }

@@ -1,8 +1,6 @@
 package http
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -225,89 +223,4 @@ func BuildErrorResponses(api huma.API, specs ...ErrorResponseSpec) map[string]*h
 		}
 	}
 	return out
-}
-
-// RefusalAuditor records a single append-only REFUSED row in schema_identity.identity_audit
-// before an HTTP error response is flushed to the wire.
-type RefusalAuditor interface {
-	RecordHTTPRejAudit(ctx context.Context, method, path string, status int, problemType, detail string, actorAccountID *string)
-}
-
-type actorHolderKey struct{}
-
-// SetRequestActorID records the authenticated account ID in the request-scoped
-// holder so the outer refusal-audit middleware can attribute 403/404/409 refusals.
-func SetRequestActorID(ctx context.Context, accountID string) {
-	if ptr, ok := ctx.Value(actorHolderKey{}).(*string); ok && ptr != nil {
-		*ptr = accountID
-	}
-}
-
-// RefusalAuditMiddleware intercepts HTTP responses with status >= 400 and records
-// exactly one REFUSED row in schema_identity.identity_audit synchronously before
-// writing the response to the network connection.
-func RefusalAuditMiddleware(auditor RefusalAuditor) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		if auditor == nil {
-			return next
-		}
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var actorID string
-			ctx := context.WithValue(r.Context(), actorHolderKey{}, &actorID)
-			bw := &bufferedResponseWriter{
-				ResponseWriter: w,
-				status:         http.StatusOK,
-			}
-			next.ServeHTTP(bw, r.WithContext(ctx))
-
-			if bw.status >= 400 {
-				var prob ProblemDetail
-				_ = json.Unmarshal(bw.buf.Bytes(), &prob)
-				pType := prob.Type
-				if pType == "" {
-					pType = DefaultTypeForStatus(bw.status)
-				}
-				detail := prob.Detail
-				if detail == "" {
-					detail = http.StatusText(bw.status)
-				}
-				var actorPtr *string
-				if actorID != "" {
-					actorPtr = &actorID
-				}
-				auditor.RecordHTTPRejAudit(r.Context(), r.Method, r.URL.Path, bw.status, pType, detail, actorPtr)
-			}
-			bw.flush()
-		})
-	}
-}
-
-type bufferedResponseWriter struct {
-	http.ResponseWriter
-	status      int
-	wroteHeader bool
-	buf         bytes.Buffer
-}
-
-func (b *bufferedResponseWriter) WriteHeader(code int) {
-	if !b.wroteHeader {
-		b.status = code
-		b.wroteHeader = true
-	}
-}
-
-func (b *bufferedResponseWriter) Write(p []byte) (int, error) {
-	if !b.wroteHeader {
-		b.WriteHeader(http.StatusOK)
-	}
-	return b.buf.Write(p)
-}
-
-func (b *bufferedResponseWriter) flush() {
-	if b.wroteHeader {
-		b.ResponseWriter.WriteHeader(b.status)
-	}
-	if b.buf.Len() > 0 {
-		_, _ = b.ResponseWriter.Write(b.buf.Bytes())
-	}
 }

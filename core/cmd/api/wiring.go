@@ -26,9 +26,9 @@ import (
 
 // newRouter wires the pgx pool, both bounded-context repositories, the bridge
 // that exposes organization scope lookups as identity's ScopePort, the identity
-// service as organization's IdentityPort, the authn guard, the refusal auditor
-// and every S1 operation into one Chi router. It is a function instead of inline
-// wiring so the contract test can build the real router without booting a server.
+// service as organization's IdentityPort, the authn guard and every S1 operation
+// into one Chi router. It is a function instead of inline wiring so the contract
+// test can build the real router without booting a server.
 func newRouter(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*chi.Mux, huma.API) {
 	if logger == nil {
 		logger = slog.Default()
@@ -55,7 +55,7 @@ func newRouter(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*chi
 
 	guard := authn.NewGuard([]byte(cfg.JWTSecret), identityRepo, organizationRepo)
 
-	router, api := platformhttp.NewRouter(identityRepo)
+	router, api := platformhttp.NewRouter()
 	identityhttp.Register(api, identityhttp.Deps{Service: identityService, Guard: guard, Logger: logger})
 	organizationhttp.Register(api, organizationhttp.Deps{Service: organizationService, Guard: guard, Logger: logger})
 

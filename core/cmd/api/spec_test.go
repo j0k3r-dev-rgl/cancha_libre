@@ -88,14 +88,17 @@ var documentedErrors = map[string]map[int][]string{
 	},
 	"logout": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
 	},
 	"getOwnAccount": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
 	},
 	"listOwnContexts": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
 	},
 	"selectContext": {

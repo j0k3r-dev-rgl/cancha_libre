@@ -247,7 +247,7 @@ func registerLogout(api huma.API, deps Deps) {
 		DefaultStatus: nethttp.StatusNoContent,
 		Middlewares:   deps.guarded(api),
 		Responses: errorResponses(api,
-			err401Unauthenticated, err500Internal,
+			err401Unauthenticated, err403Forbidden, err500Internal,
 		),
 	}, func(ctx context.Context, in *logoutRequest) (*logoutResponse, error) {
 		principal, err := deps.principal(ctx)

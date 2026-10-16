@@ -20,7 +20,7 @@ func registerGetOwnAccount(api huma.API, deps Deps) {
 		DefaultStatus: nethttp.StatusOK,
 		Middlewares:   deps.guarded(api),
 		Responses: errorResponses(api,
-			err401Unauthenticated, err500Internal,
+			err401Unauthenticated, err403Forbidden, err500Internal,
 		),
 	}, func(ctx context.Context, _ *emptyInput) (*getOwnAccountResponse, error) {
 		principal, err := deps.principal(ctx)
@@ -68,7 +68,7 @@ func registerListOwnContexts(api huma.API, deps Deps) {
 		DefaultStatus: nethttp.StatusOK,
 		Middlewares:   deps.guarded(api),
 		Responses: errorResponses(api,
-			err401Unauthenticated, err500Internal,
+			err401Unauthenticated, err403Forbidden, err500Internal,
 		),
 	}, func(ctx context.Context, _ *emptyInput) (*listOwnContextsResponse, error) {
 		principal, err := deps.principal(ctx)

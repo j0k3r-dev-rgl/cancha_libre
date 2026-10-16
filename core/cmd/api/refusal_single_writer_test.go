@@ -15,9 +15,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"canchalibre/core/internal/platform/actor"
 	"canchalibre/core/internal/platform/config"
 	platformpg "canchalibre/core/internal/platform/postgres"
+	"canchalibre/core/internal/platform/security"
 )
+
+// apiTestJWTSecret is the secret both the router and the tokens minted by these
+// tests use, so a token this file signs is the token the guard verifies.
+const apiTestJWTSecret = "0123456789abcdef0123456789abcdef"
 
 // apiTestDatabaseURL is this package's own target. Every Postgres-backed test
 // package resets and seeds a database of its own, because `go test ./...` runs
@@ -69,7 +75,7 @@ func newDatabaseBackedRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	t.Helper()
 
 	router, _ := newRouter(pool, config.Config{
-		JWTSecret:         "0123456789abcdef0123456789abcdef",
+		JWTSecret:         apiTestJWTSecret,
 		InvitationURLBase: "http://localhost:3000/auth/activate",
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	return router
@@ -162,5 +168,66 @@ func TestOneServiceRefusalAppendsExactlyOneAuditRow(t *testing.T) {
 	}
 	if sessions != 0 {
 		t.Fatalf("refresh sessions after a refused login = %d, want 0", sessions)
+	}
+}
+
+// TestClosedAccountIsForbiddenOnEveryGuardedAccountOperation proves the rule the
+// contract cells for logout, getOwnAccount and listOwnContexts now declare: the
+// guard is the status authority, so a valid token for a non-ACTIVE account is
+// refused with 403 urn:canchalibre:error:forbidden before any handler runs. The
+// account is closed directly in the database because the refusal is about the
+// stored status, not about how it got there.
+func TestClosedAccountIsForbiddenOnEveryGuardedAccountOperation(t *testing.T) {
+	pool := setupAPITestDatabase(t)
+	router := newDatabaseBackedRouter(t, pool)
+
+	var accountID string
+	if err := pool.QueryRow(context.Background(), `
+		UPDATE schema_identity.account
+		   SET status = 'CLOSED', closed_at = now()
+		 WHERE lower(email) = lower('owner@canchalibre.local')
+		RETURNING id::text`).Scan(&accountID); err != nil {
+		t.Fatalf("close the seeded owner account: %v", err)
+	}
+
+	now := time.Now().UTC()
+	token, err := security.SignAccessToken([]byte(apiTestJWTSecret), security.AccessTokenClaims{
+		Subject:   accountID,
+		Actor:     actor.RoleOwner,
+		IssuedAt:  now,
+		ExpiresAt: now.Add(30 * time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("sign access token: %v", err)
+	}
+
+	operations := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{name: "logout", method: http.MethodPost, path: "/api/v1/auth/logout"},
+		{name: "getOwnAccount", method: http.MethodGet, path: "/api/v1/me"},
+		{name: "listOwnContexts", method: http.MethodGet, path: "/api/v1/me/contexts"},
+	}
+	for _, op := range operations {
+		status, prob := do(t, router, op.method, op.path, "",
+			map[string]string{"Authorization": "Bearer " + token})
+		if status != http.StatusForbidden {
+			t.Fatalf("%s with a CLOSED account: status = %d, want %d (%+v)", op.name, status, http.StatusForbidden, prob)
+		}
+		if prob.Type != "urn:canchalibre:error:forbidden" {
+			t.Fatalf("%s with a CLOSED account: type = %q, want urn:canchalibre:error:forbidden", op.name, prob.Type)
+		}
+	}
+
+	// The refusal mutates nothing: the account keeps the status that caused it.
+	var status string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT status FROM schema_identity.account WHERE id = $1::uuid`, accountID).Scan(&status); err != nil {
+		t.Fatalf("read account status: %v", err)
+	}
+	if status != "CLOSED" {
+		t.Fatalf("account status after three guard refusals = %q, want CLOSED", status)
 	}
 }

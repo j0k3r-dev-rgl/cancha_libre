@@ -250,9 +250,9 @@ In the error column of the second table, the value after `status →` is the cat
 | `activateInvitation` | `{token, password}` | `200` `{account_id, status}` | `400` validation (password policy); `409` invitation-consumed; `409` invitation-expired; `403` forbidden (email already an active `ADMIN`); `500` internal |
 | `requestPasswordRecovery` | `{email, accountKind}` | `202` empty body | `400` validation; `500` internal. Deliberately **no** `404`: the answer is identical whether or not the account exists |
 | `resetPassword` | `{token, password}` | `200` empty body | `400` validation; `401` unauthenticated (token invalid or expired — one type, so the reason is not disclosed); `500` internal |
-| `logout` | empty body | `204` empty body | `401` unauthenticated; `500` internal |
-| `getOwnAccount` | none | `200` `{account_id, email, kind, status, display_name}` | `401` unauthenticated; `500` internal |
-| `listOwnContexts` | none | `200` `[{business_id, business_name, branch_id, branch_name, role}]` | `401` unauthenticated; `500` internal |
+| `logout` | empty body | `204` empty body | `401` unauthenticated; `403` forbidden (account not `ACTIVE`, or the actor's role or membership no longer authorized); `500` internal |
+| `getOwnAccount` | none | `200` `{account_id, email, kind, status, display_name}` | `401` unauthenticated; `403` forbidden (account not `ACTIVE`, or the actor's role or membership no longer authorized); `500` internal |
+| `listOwnContexts` | none | `200` `[{business_id, business_name, branch_id, branch_name, role}]` | `401` unauthenticated; `403` forbidden (account not `ACTIVE`, or the actor's role or membership no longer authorized); `500` internal |
 | `selectContext` | `{business_id, branch_id}` | `200` `{access_token, expires_in}` | `400` validation; `401` unauthenticated; `403` context-not-authorized (no active membership, or disabled business/branch — one type, so scope is not probed); `500` internal |
 | `assignCoOwner` | `{account_id}` or `{email, intended_role: OWNER}` | `201` `{membership_id, role, business_id}` | `400` validation; `401` unauthenticated; `403` forbidden (not `ADMIN`); `404` not-found (unknown business); `409` conflict (already an active co-owner); `500` internal |
 | `revokeCoOwner` | none | `204` empty body | `401` unauthenticated; `403` forbidden (not `ADMIN`); `404` not-found (unknown business, or no such active co-owner); `409` last-co-owner (would leave the business without a co-owner); `500` internal |

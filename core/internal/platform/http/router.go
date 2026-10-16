@@ -41,7 +41,7 @@ const APIServerURL = "http://localhost:8080"
 // NotFound/MethodNotAllowed fallbacks, registers /health and /api/v1/ping, and
 // returns both the Chi mux and the huma.API instance so modules can register
 // their operations.
-func NewRouter() (*chi.Mux, huma.API) {
+func NewRouter(auditor ...RefusalAuditor) (*chi.Mux, huma.API) {
 	InstallErrorOverride()
 
 	r := chi.NewRouter()
@@ -51,6 +51,9 @@ func NewRouter() (*chi.Mux, huma.API) {
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.Timeout(30 * time.Second))
+	if len(auditor) > 0 && auditor[0] != nil {
+		r.Use(RefusalAuditMiddleware(auditor[0]))
+	}
 
 	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
 		WriteProblem(w, http.StatusNotFound, TypeNotFound, "The requested resource was not found.")

@@ -51,7 +51,7 @@ Use this skill when preparing, composing, amending, or validating Git commit mes
 | --- | --- | --- |
 | New booking endpoint | `feat(booking): add slot reservation endpoint` | `feat: added endpoint.` |
 | Fix race condition in reservation | `fix(booking): prevent double-booking with row lock` | `fix: bug fixed` |
-| Add new migration for courts | `feat(court): add surface type column to court table` | `chore: update db` |
+| Add a column to the court table | `feat(court): add surface type column to court table` | `chore: update db` |
 | Update README or guides | `docs(readme): add local postgres setup steps` | `docs: updates` |
 | Breaking API contract change | `feat(api)!: rename court_id parameter to courtId` | `fix: changed param name` |
 

@@ -84,11 +84,11 @@ core/
       identity/
         core/{domain,ports,usecase}
         adapters/inbound/http
-        adapters/outbound/postgres/migrations/
+        adapters/outbound/postgres/schema/
       organization/
         core/{domain,ports,usecase}
         adapters/inbound/http
-        adapters/outbound/postgres/migrations/
+        adapters/outbound/postgres/schema/
     platform/
       actor/                # portable resolved-actor value type (D6)
       authn/                # guard middleware, ports injected at cmd/api (D7)
@@ -103,7 +103,7 @@ core/
 | `internal/adapter/http/response.go` | **Deleted.** Its RFC 7807 struct is superseded by the huma error model of §1; it has no caller today, and S1 is where the roadmap already assigned its removal. |
 | `internal/adapter/http/router_test.go` | Moves with the probes to `platform/http`, keeping the existing contract assertions. |
 | `internal/config/config.go` | Moves to `platform/config`, gaining the pool and JWT settings the identity slice needs. |
-| `internal/adapter/postgres/` (empty) | Removed. Each context owns its pool and migrations. |
+| `internal/adapter/postgres/` (empty) | Removed. Each context owns its pool and its apply-on-reset `schema/*.sql`, applied in lexical order when the API binary recreates the local database (T3.2). |
 | `internal/usecase/` (empty) | Removed. |
 
 Rule this layout creates and S1 must honor: **no cross-context imports of `core`.** `booking` never imports `identity/core`; it receives what it needs through an inbound port wired at `cmd/api`. A contract test greps for forbidden import edges, because this is the boundary that is cheapest to check and most expensive to repair later.
@@ -160,7 +160,7 @@ The scratch module was removed; nothing was written to `core/`.
 | Business and branch creation, approval, archival | S2's deliverable; S1 gets only the spine memberships attach to. | S2 |
 | Customer profile completion and phone verification | S4. | S4 |
 | `SOPORTE` phone/DNI procedures in full | S4 designs the procedure; S1 only provisions the actor. | S4 |
-| Adding `pgx/v5` and `goose` to `go.mod` | Build-time dependency work, not design. | S1 |
+| Adding `pgx/v5` to `go.mod` | Build-time dependency work, not design. | S1 |
 | The guard's per-request query shape | Already frozen by the T1.3 design; this document only places the middleware. | — |
 | Token signing algorithm and key parameters | Named as unresolved in PRD §7 and not needed to freeze routes; S1 decides it with `golang-security`. | S1 |
 | A `SOPORTE` invitation path in the inventory | Included as `intended_role: SOPORTE`, but the actor is provisioned, never self-served; S1 confirms whether the operator or the `ADMIN` issues it. | S1, small |

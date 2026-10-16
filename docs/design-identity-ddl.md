@@ -2,7 +2,7 @@
 
 This design closes the `docs/prd-backend.md` section 7 item *Concrete table DDL and exclusion predicates*, restricted to what S1 (identity) needs: the identity schema and the minimum spine (business, branch, membership) that memberships attach to. It pairs with [`docs/design-identity-auth.md`](design-identity-auth.md), which read from these tables. It decides no court, offer, reservation or payment table (S2, S3, S6) and no endpoint (the endpoint inventory owns routes).
 
-The plan below is not speculative: every statement was applied to a real PostgreSQL 17 instance, falsified case by case, rolled back, and the concurrent rotation path was run with two simultaneous transactions. The evidence is recorded in *Verification performed*.
+The schema below is not speculative: every statement was applied to a real PostgreSQL 17 instance, falsified case by case, and the concurrent rotation path was run with two simultaneous transactions. The evidence is recorded in *Verification performed*. The DDL is applied by the reset as plain, non-versioned SQL — never by a migration tool (see *Development reset and seed*).
 
 ## Decisions
 
@@ -17,23 +17,41 @@ The plan below is not speculative: every statement was applied to a real Postgre
 | D7 | Guard lookup | One partial index `(account_id, business_id, branch_id) WHERE revoked_at IS NULL` serves the guard's single read. Verified with `EXPLAIN`: an Index Scan, no sequential scan. |
 | D8 | Refresh session | One row per login session keyed by the **hash** of the refresh token; `family_id` groups a session's rotations; `replaced_by` links a rotated row to its successor. Rotation is one `UPDATE … RETURNING` feeding one `INSERT` inside a single transaction, which is what makes D6 of the auth design ("exactly one winner") true under concurrency. |
 | D9 | Refusals | No table is written by a refused request. `identity_audit` is append-only and not domain state: recording a refusal does not violate "a refusal mutates nothing". |
-| D10 | Reversibility | Both migrations carry an explicit `-- +goose Down` that was executed and left zero tables and zero schemas behind. |
 
 ## Placement
 
-Per-context migrations, as `database-postgres-patterns` fixes:
+Apply-on-reset schema DDL, one file per context, as `database-postgres-patterns` fixes:
 
 ```text
-internal/modules/identity/adapters/outbound/postgres/migrations/00001_identity_schema.sql
-internal/modules/organization/adapters/outbound/postgres/migrations/00001_organization_spine.sql
+internal/modules/identity/adapters/outbound/postgres/schema/0001_identity_schema.sql
+internal/modules/organization/adapters/outbound/postgres/schema/0001_organization_spine.sql
 ```
 
-Those directories do not exist yet; the module layout belongs to S1. This block freezes the files, not their creation. Order matters: the spine's `account_id` is logical, so either migration may run first.
+Those directories do not exist yet; the module layout belongs to S1. This block freezes the files, not their creation. Each file is plain, non-versioned SQL applied in lexical order by the reset, and order does not matter here: the spine's `account_id` is logical, so either context's schema may be applied first. The directory is named `schema/` and not `migrations/` because there is no migration tool and no version to move between — the reset recreates the schema from scratch on every start, which is what *Development reset and seed* documents.
 
-## Migration 1 — `schema_identity`
+## Development reset and seed
+
+The development database is not permanent. It is dropped, recreated, re-schemed and reseeded at **every start of the API binary**, with no environment check and no confirmation. Starting the API *is* the trigger; there is no separate command to remember and no state that survives a restart.
+
+The routine runs in this order:
+
+1. `DROP DATABASE IF EXISTS <target> WITH (FORCE)`. This statement runs against the maintenance database, because PostgreSQL refuses `DROP DATABASE` from inside the database being dropped; `FORCE` terminates any session still connected to the target.
+2. `CREATE DATABASE <target>`.
+3. Connect to the recreated database.
+4. Apply every context's `schema/*.sql` in lexical order (see *Placement*).
+5. Load the seed found under `core/dev/`.
+
+The seed is the layout T1.5 froze and it lives in two places. `core/dev/seed.topology.json` is committed and holds no credential: two businesses (`B1`, `B2`), three branches, the `OWNER` and `EMPLOYEE` memberships, the two platform actors (`ADMIN`, `SOPORTE`), the `PLAYER` customer, and the refusal matrix those rows exist to make refusable. Accounts are matched to that topology by email; the five passwords live in the git-ignored `.pi/api.json.local`, reached from `.pi/api.json` through `auth.accounts_file`. The load therefore creates the accounts for the five actors first, then their platform roles and memberships — the refusal matrix is what proves the seeded shape is the one section 5.4 needs.
+
+### Accepted risk: the reset has no guard
+
+The missing guard is a deliberate, re-confirmed decision, not an oversight. `DROP DATABASE ... WITH (FORCE)` is compiled into the API binary and executes wherever that binary runs; merely starting the API is enough to trigger it, against whatever database the connection configuration points at. On the development machine the target database is disposable and the only data at risk is the developer's own scratch state — which is the whole reason the reset exists. Anywhere else it is an unconditional destructive statement that fires without asking.
+
+The risk was raised explicitly and the decision was re-confirmed afterwards: *"Dejalo sin guarda, es sólo mi máquina"*. It is recorded here as an **accepted risk** with the exposure named above. Excluding the routine from a production build behind a build tag remains available — the reset can live behind a tag so a release binary cannot contain the destructive statement at all — and is deliberately **not** adopted. This must be revisited before the first deploy.
+
+## `schema_identity`
 
 ```sql
--- +goose Up
 CREATE SCHEMA IF NOT EXISTS schema_identity;
 
 -- One row per independent account. Work and customer accounts may share an
@@ -128,22 +146,13 @@ CREATE TABLE schema_identity.identity_audit (
 
 CREATE INDEX identity_audit_subject_idx
     ON schema_identity.identity_audit (subject_account_id, occurred_at DESC);
-
--- +goose Down
-DROP TABLE IF EXISTS schema_identity.identity_audit;
-DROP TABLE IF EXISTS schema_identity.refresh_session;
-DROP TABLE IF EXISTS schema_identity.invitation;
-DROP TABLE IF EXISTS schema_identity.credential;
-DROP TABLE IF EXISTS schema_identity.account;
-DROP SCHEMA IF EXISTS schema_identity;
 ```
 
 `platform_role` and `membership.role` are separate on purpose. `ADMIN` is a platform actor with no branch; an `OWNER` is a business actor with a membership. Collapsing them would make "`ADMIN` is refused on reservations, customers and payments" impossible to express, because an administrator would also be a member of the business they administer.
 
-## Migration 2 — `schema_organization` spine
+## `schema_organization` spine
 
 ```sql
--- +goose Up
 CREATE SCHEMA IF NOT EXISTS schema_organization;
 
 CREATE TABLE schema_organization.business (
@@ -200,13 +209,6 @@ CREATE UNIQUE INDEX membership_one_active_owner_key
 CREATE UNIQUE INDEX membership_one_active_employee_key
     ON schema_organization.membership (account_id, branch_id)
     WHERE role = 'EMPLOYEE' AND revoked_at IS NULL;
-
--- +goose Down
-DROP TABLE IF EXISTS schema_organization.membership;
-ALTER TABLE schema_organization.branch DROP CONSTRAINT IF EXISTS branch_id_business_key;
-DROP TABLE IF EXISTS schema_organization.branch;
-DROP TABLE IF EXISTS schema_organization.business;
-DROP SCHEMA IF EXISTS schema_organization;
 ```
 
 `revoked_at` is the only lifecycle column: revoking a membership is a timestamp, not a delete, so the audit trail and the unique indexes both stay truthful. The partial unique indexes allow a revoked owner to be re-added with equal access (`BE-ACC-05` requires refusing the **last**-co-owner revocation, which is a use-case rule computed from these rows, not a table constraint).
@@ -268,11 +270,13 @@ A refused request writes no domain row. The shape of each refusal — 401 unauth
 
 ## Verification performed
 
-PostgreSQL 17 (`postgres:17-alpine`), throwaway container, both migrations applied, then falsified case by case.
+PostgreSQL 17 (`postgres:17-alpine`), throwaway container, the schema applied, then falsified case by case.
+
+**Version caveat.** The project's development target is PostgreSQL **16**: `docker_compose/docker-compose.yml` pins `postgres:16-alpine`, and `docs/prd-backend.md` requires 16+. This evidence was produced on **17**. The schema uses no 17-only feature — the exclusion constraints, partial indexes, composite foreign keys and `DROP DATABASE … WITH (FORCE)` all exist in 16 — but "falsified" is a claim about the version it ran on, and that is not the database the reset will actually recreate. The falsification must therefore be re-run against the type the reset targets once the reset lands in S1. Until then this evidence is strong for the DDL's logic and unproven for the exact server it will run against.
 
 | # | Case | Expected | Observed |
 | --- | --- | --- | --- |
-| 1 | Both migrations `Up` | apply | exit 0, exit 0 |
+| 1 | Both context schemas applied | apply | exit 0, exit 0 |
 | 2 | Same email as `CUSTOMER` and `WORK` | allowed | inserted |
 | 3 | Same `(email, kind)`, different case | refused | `account_email_kind_key` violation |
 | 4 | `CUSTOMER` carrying `platform_role` | refused | `account_platform_role_is_work` violation |
@@ -287,7 +291,9 @@ PostgreSQL 17 (`postgres:17-alpine`), throwaway container, both migrations appli
 | 13 | Guard lookup plan | Index Scan | `Index Scan using membership_guard_idx`, no sequential scan |
 | 14 | Two concurrent exchanges of the same token | exactly one winner | one row inserted, the other transaction inserted nothing |
 
-Then: reuse of the rotated token inserted nothing; family revocation revoked both rows of the family in one statement; and the `Down` blocks ran in reverse order leaving **zero** tables in `schema_%` and **zero** schemas named `schema_%`.
+Then: reuse of the rotated token inserted nothing, and family revocation revoked both rows of the family in one statement.
+
+**Invalidated by the removal of migrations.** The earlier evidence that both `Down` blocks ran in reverse order and left **zero** tables in `schema_%` and **zero** schemas named `schema_%` no longer applies. Reversibility is not an acceptance criterion any more; the criterion that replaces it is that the reset recreates the schema from scratch on every local start and leaves no residue of the previous state. That is the reset's own drop-and-recreate cycle to prove, not a `Down` statement, and it is not claimed here — the routine of *Development reset and seed* is not implemented yet, so no reset evidence exists.
 
 ## What this design deliberately leaves open
 
@@ -308,8 +314,9 @@ Then: reuse of the rotated token inserted nothing; family revocation revoked bot
 - [ ] The guard lookup is one indexed read and returns nothing for a revoked membership, a disabled business or a disabled branch.
 - [ ] Two concurrent refresh exchanges cannot revoke a legitimate session, and reusing a rotated token revokes the family.
 - [ ] Refused requests leave every domain table unchanged.
-- [ ] Each `Down` reverses its `Up` completely.
+- [ ] No `migrations/` directory and no migration tooling appears anywhere in the placement.
+- [ ] The reset recreates the schema from scratch on every local start and leaves no residue of the previous state.
 
 ## Next step
 
-T1.4 builds the section 5.4 verification harness (read-only subagent plus runner), T1.5 fixes the seed layout for the five actors referenced from `.pi/api.json`, and T1.6 pins `govulncheck` and decides whether `openapi.json` is committed.
+T1.4 builds the section 5.4 verification harness (read-only subagent plus runner), T1.5 fixes the seed layout for the five actors referenced from `.pi/api.json` and consumed by the reset, and T1.6 pins `govulncheck` and decides whether `openapi.json` is committed.

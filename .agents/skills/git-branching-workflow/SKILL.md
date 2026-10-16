@@ -14,8 +14,8 @@ Use this skill when starting new tasks, branching, merging code into `main`, cre
 ## Hard Rules
 
 - **Feature Branch Isolation**:
-  - All new features, bug fixes, refactoring, database migrations, and contract updates must be implemented in a dedicated branch created from the latest `main`.
-  - Direct commits of executable source code, tests, or SQL migrations to `main` are strictly prohibited.
+  - All new features, bug fixes, refactoring, database schema changes, and contract updates must be implemented in a dedicated branch created from the latest `main`.
+  - Direct commits of executable source code, tests, or SQL schema files to `main` are strictly prohibited.
 - **Branch Naming Standard**:
   - `feat/<short-kebab-name>` (e.g. `feat/court-reservations`)
   - `fix/<short-kebab-name>` (e.g. `fix/slot-overlap-guard`)
@@ -40,7 +40,7 @@ Use this skill when starting new tasks, branching, merging code into `main`, cre
 | Change Description | Workflow Path | Forbidden Action |
 | --- | --- | --- |
 | New feature or bug fix | Create `feat/*` or `fix/*` branch -> merge `--no-ff` | Committing directly to `main` |
-| Database migration (Goose) | Dedicated branch -> tested against Postgres -> merge | Running or committing migrations on `main` directly |
+| Database schema change | Dedicated branch -> tested against Postgres -> merge | Committing schema changes on `main` directly |
 | OpenAPI contract change | Dedicated branch with synchronized TS types -> merge | Pushing spec changes directly to `main` |
 | Markdown typo in README | Direct commit to `main` with `docs(...)` message | Opening an overhead PR for a single-character typo |
 | Release notes / CHANGELOG | Direct commit to `main` as part of release workflow | Creating long-lived branches for release docs |

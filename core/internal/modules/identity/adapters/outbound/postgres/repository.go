@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -798,6 +799,29 @@ func (r *Repository) AppendAudit(ctx context.Context, entry domain.AuditEntry) e
 		VALUES ($1, $2, $3::uuid, $4::uuid, $5, $6::jsonb)
 	`, entry.Event, entry.Outcome, actorID, subjectID, entry.Reason, string(detailJSON))
 	return err
+}
+
+// RecordHTTPRejAudit implements the platform HTTP RefusalAuditor port. It writes
+// one append-only REFUSED identity_audit row for a refusal observed by the
+// refusal-audit middleware, keeping the request method and path in the audit
+// detail. It never returns an error to the caller, because a refusal must never
+// be turned into a 500; a failed audit write is logged instead.
+func (r *Repository) RecordHTTPRejAudit(ctx context.Context, method, path string, status int, problemType, detail string, actorAccountID *string) {
+	err := r.AppendAudit(ctx, domain.AuditEntry{
+		Event:          "http_refusal",
+		Outcome:        domain.AuditOutcomeRefused,
+		ActorAccountID: actorAccountID,
+		Reason:         detail,
+		Detail: map[string]any{
+			"method":       method,
+			"path":         path,
+			"status":       status,
+			"problem_type": problemType,
+		},
+	})
+	if err != nil {
+		slog.Default().ErrorContext(ctx, "failed to record HTTP refusal audit row", "error", err)
+	}
 }
 
 func isUniqueViolation(err error) bool {

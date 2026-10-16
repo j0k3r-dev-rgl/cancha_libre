@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"canchalibre/core/internal/platform/config"
-	platformhttp "canchalibre/core/internal/platform/http"
 	"canchalibre/core/internal/platform/postgres"
 )
 
@@ -39,7 +38,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	router, _ := platformhttp.NewRouter()
+	router, _ := newRouter(pool, cfg, logger)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Port),

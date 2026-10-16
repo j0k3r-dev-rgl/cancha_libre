@@ -126,6 +126,20 @@ Slice S1 starts from written design, not from decisions taken while coding it. T
 
 **What this block does not touch:** the dead code left by the huma migration (`internal/adapter/http/response.go`) stays with S1, where the roadmap already assigned it, and the identity slice itself stays unauthorized until the user authorizes it.
 
+### Block T2 — identity routes frozen (diseño, sin código)
+
+Section 5.2 requires each slice to add its endpoints to an inventory **before** they are implemented, and T1 did not cover that. This block supplies it, together with the three cross-cutting contracts an endpoint cannot be frozen without: the stable RFC 7807 problem-type catalog, the bounded-context module layout that replaces the flat bootstrap (`BE-ENG-07`), and the private first-`ADMIN` command of `BE-ACC-04`. It delivers design only — no product behaviour, no Go code — and S1 stays unauthorized.
+
+| ID | Task | Evidence that closes it |
+| --- | --- | --- |
+| T2.1 | Fix the RFC 7807 problem-type catalog and the error convention | [`docs/design-identity-endpoints.md`](design-identity-endpoints.md) §1: the closed `type` catalog, the shape, the verified huma mechanism, and the unrouted-path fallback |
+| T2.2 | Fix the bounded-context module layout and the fate of the flat scaffolding | Same document §2: the target tree, and the fate of each current file |
+| T2.3 | Freeze the identity endpoint inventory as section 5.2 rows | The inventory in section 5.2 of this document: 15 operations with actor, `BE-*`, `AC-*`, idempotency, request, success response and every documented error |
+| T2.4 | Fix the contract of the private first-`ADMIN` provisioning command | Same document §4: the `provision-admin` contract, its refusals and its exit codes |
+| T2.5 | Reconcile section 7/8 so nothing frozen is still called pending | This document's section 8 and `docs/prd-backend.md` section 7 |
+
+**Exit criteria for T2:** the identity endpoints are frozen with every error typed, the module layout is decided, the provisioning command is contracted, and S1 can start without re-deciding any route. The identity slice itself remains unauthorized until the user authorizes it.
+
 ## 4. What each slice delivers
 
 Every slice follows the same shape: deliverable, out of scope, verification required to close.
@@ -197,6 +211,58 @@ Once T0 closes, each slice adds its endpoints to an inventory in this document b
 | Conflicting state (duplicate, overlap, limit reached) | 409 or 422 with a stable `type`; no reservation, offer, or counter created |
 | Repeated identical request | Documented idempotency or documented non-idempotency — never undefined |
 | Concurrent duplicates, when the invariant requires it | Exactly one effect; the losers receive a stable refusal |
+
+#### Inventory — S1 (identity)
+
+Frozen before implementation, as this section requires. Every `type` below comes from the catalog in [`docs/design-identity-endpoints.md`](design-identity-endpoints.md) §1.1; no endpoint may document a `type` outside it, and `about:blank` is never documented. Each documented error is registered as an explicit huma `Responses` entry with a per-error example, because `Errors []int` alone does not publish the `type` (verified, same document §1.3).
+
+All routes are served under the `/api/v1` prefix, which the table below omits for readability: `POST /auth/login` is served at `/api/v1/auth/login`. Every path parameter is a UUID. `AMBIENT` means no credential is required.
+
+In the error column of the second table, the value after `status →` is the catalog **slug**; the wire value is `urn:canchalibre:error:<slug>`. So `403 forbidden` means `type = urn:canchalibre:error:forbidden` on the wire. The slug is used only to keep the rows readable, and the mapping is one-to-one.
+
+`—` in the `AC` column means **no acceptance criterion in the MVP covers this operation, deliberately**. The MVP's acceptance table has no criterion for session refresh, token-based recovery or logout, because those are engineering obligations of `BE-ACC-01` rather than customer-visible acceptance examples; filling the cell with an unrelated AC would be a fabricated requirement. Every other row cites the AC it demonstrates.
+
+| Operation ID | Method and path | Actor | Requirements | AC | Idempotency |
+| --- | --- | --- | --- | --- | --- |
+| `login` | `POST /auth/login` | AMBIENT | BE-ACC-01/02/04, BE-ENG-05 | AC-42 | non-idempotent: each call issues a new session |
+| `refresh` | `POST /auth/refresh` | AMBIENT (refresh cookie) | BE-ACC-01 | — | **non-idempotent by design**: a replayed token is the reuse signal that revokes the family |
+| `activateInvitation` | `POST /auth/invitations/activate` | AMBIENT (invitation token) | BE-ACC-04, BE-ORG-01 | AC-43 | non-idempotent: activation is single-use |
+| `requestPasswordRecovery` | `POST /auth/password/recovery` | AMBIENT | BE-ACC-01 | — | idempotent from the client's view: the same answer whether or not the email exists |
+| `resetPassword` | `POST /auth/password/reset` | AMBIENT (single-use token) | BE-ACC-01/04 | — | non-idempotent: the token is consumed |
+| `logout` | `POST /auth/logout` | authenticated | BE-ACC-01 | — | idempotent: revoking an already-revoked session succeeds |
+| `getOwnAccount` | `GET /me` | authenticated | BE-ACC-02, BE-ENG-05 | AC-42 | idempotent |
+| `listOwnContexts` | `GET /me/contexts` | authenticated | BE-ACC-06, BE-ORG-01 | AC-26 | idempotent |
+| `selectContext` | `POST /me/context` | authenticated | BE-ACC-06, BE-ENG-01 | AC-18, AC-26 | non-idempotent: issues a new access token |
+| `assignCoOwner` | `POST /admin/businesses/{businessId}/co-owners` | ADMIN | BE-ACC-05, BE-ENG-01 | AC-43 | non-idempotent: an existing active membership conflicts |
+| `revokeCoOwner` | `DELETE /admin/businesses/{businessId}/co-owners/{accountId}` | ADMIN | BE-ACC-05 | AC-43 | idempotent: revoking an already-revoked membership succeeds |
+| `listMemberships` | `GET /businesses/{businessId}/memberships` | OWNER | BE-ACC-06, BE-ENG-05 | AC-26 | idempotent |
+| `inviteMember` | `POST /businesses/{businessId}/invitations` | OWNER | BE-ACC-04/06 | AC-43 | non-idempotent: issues a new invitation |
+| `revokeMembership` | `DELETE /businesses/{businessId}/memberships/{membershipId}` | OWNER | BE-ACC-06 | AC-26 | idempotent: revoking an already-revoked membership succeeds |
+| `revokeInvitation` | `DELETE /businesses/{businessId}/invitations/{invitationId}` | OWNER | BE-ACC-04/06 | AC-43 | idempotent |
+
+| Operation ID | Request shape | Success response | Documented errors (`status` → `type`) |
+| --- | --- | --- | --- |
+| `login` | `{email, password, accountKind}` | `200` `{access_token, expires_in, context: [{business_id, branch_id, role}] \| null}` | `400` validation; `401` unauthenticated; `403` forbidden (account not `ACTIVE`, or `PENDING` without activation); `500` internal |
+| `refresh` | empty body; refresh token in the `HttpOnly` cookie | `200` `{access_token, expires_in}` and a rotated refresh cookie | `401` unauthenticated (absent/expired); `401` refresh-reuse (**family revoked**); `500` internal |
+| `activateInvitation` | `{token, password}` | `200` `{account_id, status}` | `400` validation (password policy); `409` invitation-consumed; `409` invitation-expired; `403` forbidden (email already an active `ADMIN`); `500` internal |
+| `requestPasswordRecovery` | `{email, accountKind}` | `202` empty body | `400` validation; `500` internal. Deliberately **no** `404`: the answer is identical whether or not the account exists |
+| `resetPassword` | `{token, password}` | `200` empty body | `400` validation; `401` unauthenticated (token invalid or expired — one type, so the reason is not disclosed); `500` internal |
+| `logout` | empty body | `204` empty body | `401` unauthenticated; `500` internal |
+| `getOwnAccount` | none | `200` `{account_id, email, kind, status, display_name}` | `401` unauthenticated; `404` not-found (closed account); `500` internal |
+| `listOwnContexts` | none | `200` `[{business_id, business_name, branch_id, branch_name, role}]` | `401` unauthenticated; `500` internal |
+| `selectContext` | `{business_id, branch_id}` | `200` `{access_token, expires_in}` | `400` validation; `401` unauthenticated; `403` context-not-authorized (no active membership, or disabled business/branch — one type, so scope is not probed); `500` internal |
+| `assignCoOwner` | `{account_id}` or `{email, intended_role: OWNER}` | `201` `{membership_id, role, business_id}` | `400` validation; `401` unauthenticated; `403` forbidden (not `ADMIN`); `404` not-found (unknown business); `409` conflict (already an active co-owner); `500` internal |
+| `revokeCoOwner` | none | `204` empty body | `401` unauthenticated; `403` forbidden (not `ADMIN`); `404` not-found (unknown business, or no such active co-owner); `409` last-co-owner (would leave the business without a co-owner); `500` internal |
+| `listMemberships` | none | `200` `[{membership_id, account_id, role, branch_id, created_at}]` | `401` unauthenticated; `403` forbidden (no active membership in this business); `404` not-found (unknown business, or a business outside scope — indistinguishable); `500` internal |
+| `inviteMember` | `{email, intended_role: OWNER \| EMPLOYEE, branch_id?}` | `201` `{invitation_id, expires_at}` | `400` validation (owning shape: `OWNER` takes no `branch_id`, `EMPLOYEE` requires one); `401` unauthenticated; `403` forbidden (not the business's co-owner, or an `EMPLOYEE` attempting it); `404` not-found (unknown business or branch outside scope); `409` conflict (`OWNER` invites only `ADMIN`, `EMPLOYEE` invites `OWNER`/`EMPLOYEE`); `500` internal |
+| `revokeMembership` | none | `204` empty body | `401` unauthenticated; `403` forbidden (not the business's co-owner; `EMPLOYEE` attempting it); `404` not-found (unknown membership, or one outside scope); `409` last-co-owner; `500` internal |
+| `revokeInvitation` | none | `204` empty body | `401` unauthenticated; `403` forbidden (not the business's co-owner); `404` not-found (unknown invitation, or one outside scope); `500` internal |
+
+**Not endpoints, deliberately.** The first `ADMIN` is provisioned by the private command `core/cmd/provision-admin` (contract in [`docs/design-identity-endpoints.md`](design-identity-endpoints.md) §4), never over HTTP: `BE-ACC-04` requires a private server command, and a network-reachable provisioning route would defeat it. `SOPORTE` is provisioned the same way, by invitation, and its phone/DNI procedures are S4's endpoints.
+
+**Not in this slice.** Business and branch creation, approval and archival are S2 (`BE-ORG-02…07`); S1 owns only the spine memberships attach to, and the roadmap already forbids it from growing into full branch management. Customer profile completion, phone verification and DNI procedures are S4.
+
+**Slice-close condition for the matrix above:** every documented error must be exercised with its observed `type`, and every refusal confirmed not to have mutated data. The `urn:canchalibre:error:method-not-allowed` and `urn:canchalibre:error:not-found` fallbacks are exercised by S1 as part of this, which also closes T0.4's pending live error response.
 
 ### 5.3 Task level
 
@@ -295,9 +361,9 @@ These are not resolved by code and each one blocks real operation, not developme
 
 ## 8. Open items
 
-- **T0.4 (live error response):** the documented 500 is never exercised at runtime because `/health` and `/api/v1/ping` have no failure path. It is observed in S1 against a handler that can actually fail, with the same RFC 7807 media type the contract already declares.
-- **Unregistered-route 404 shape (found by the T1.4 self-test):** a request to a path with no registered operation returns Chi's fallback `404` as `text/plain; charset=utf-8` with the body `404 page not found`, which is not RFC 7807 and carries no `type`. The contract declares `application/problem+json` only for `500`. Section 5.2 requires the not-found case to be problem-shaped, so the router needs one fallback that renders a problem detail. Tracked to S1, alongside T0.4, because both are the same missing piece: the project has no RFC 7807 error model of its own yet. The contract already states that `oas3-missing-example` is re-enabled in the same task that gives the project its own problem-details model.
+- **T0.4 (live error response):** the documented 500 is never exercised at runtime because `/health` and `/api/v1/ping` have no failure path. Closed as a design in block T2: the unrouted-path and wrong-method fallbacks give the harness two live error responses to observe (`404` and `405`, both problem-shaped — see [`docs/design-identity-endpoints.md`](design-identity-endpoints.md) §1.4), and S1 implements them.
+- **Unregistered-route 404 shape (found by the T1.4 self-test):** a request to a path with no registered operation returned Chi's fallback `404` as `text/plain`, not RFC 7807. The design is frozen in T2 (one `NotFound` and one `MethodNotAllowed` handler rendering a problem detail, verified/observed) and S1 implements it, together with the project's own error model. That same task re-enables the `oas3-missing-example` rule the contract's lint gate currently silences.
 - **Subagent definition:** closed in block T1 (T1.4). The definition is `.pi/agents/api-contract-verifier.md`, read-only by declared tools (`read`, `grep`, `find`, `bash`, `api_status`, `api_auth_status`, `api_login`, `api_swagger`, `api_rest_request`), with the deterministic boot half in `scripts/verify-contract.sh`. The model and effort settings still follow the active subagent profile rather than being pinned per agent.
 - **Seed credentials:** closed in block T1 (T1.5). The layout is the committed `.pi/api.json.example` plus `.pi/api.json.local.example`, the gitignored `.pi/api.json.local` holding the five actor credentials, and the credential-free `core/dev/seed.topology.json` defining the dataset and refusal matrix. See section 5.4.
 - **Committed spec:** closed in block T1 (T1.6). `openapi.json` is **not** committed; it is generated and linted during checks. It is deterministic (the same `sha256` from three consecutive reads) but host-dependent, since it declares `servers: http://localhost:8080` and three localhost `$schema` URLs, so committing it would bake a development URL into the repository. The skill already forbids hand-authoring it, and the runner of section 5.4 now generates and lints the live document on every run, which is the stronger guarantee. If a future slice wants a reviewable diff of the contract, the honest artifact is a spec regenerated from a fixed commit, not a copy carrying `localhost`.
-- **Remaining technical design from `docs/prd-backend.md` §7:** JWT claim layout, TTL/refresh and branch-context transport; concrete DDL and exclusion predicates; batch ceilings and pagination shapes; Evolution REST/webhook contract and durable retries; HMAC secret rotation and stored suffix length; public photo storage.
+- **Remaining technical design from `docs/prd-backend.md` §7:** concrete DDL and exclusion predicates for offers and reservations; batch ceilings and pagination shapes; Evolution REST/webhook contract and durable retries; HMAC secret rotation and stored suffix length; public photo storage. The identity items (JWT claim layout and branch-context transport, identity DDL and spine) are closed in T1; the identity endpoint paths are closed in T2.

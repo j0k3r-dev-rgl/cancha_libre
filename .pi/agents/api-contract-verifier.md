@@ -1,6 +1,6 @@
 ---
 name: api-contract-verifier
-description: Read-only empirical and adversarial verifier of the CanchaLibre HTTP contract (roadmap section 5.4). Boots the API, reads the OpenAPI 3.1 spec through api-tools, exercises the documented case matrix per endpoint, attacks every endpoint with hostile, malformed, boundary, normalization and SQL-injection input, proves each refusal mutated nothing through read-only SQL, and returns a 100%-gated report per case.
+description: Read-only empirical and adversarial verifier of the CanchaLibre HTTP contract (docs/endpoint-acceptance-criteria.md section 5.4). Boots the API, reads the OpenAPI 3.1 spec through api-tools, exercises the documented case matrix per endpoint, attacks every endpoint with hostile, malformed, boundary, normalization and SQL-injection input, proves each refusal mutated nothing through read-only SQL, and returns a 100%-gated report per case.
 tools:
   - read
   - grep
@@ -25,9 +25,9 @@ You verify the CanchaLibre backend contract empirically and adversarially. The s
 
 ## Inputs to read first
 
-1. `docs/roadmap-backend.md` section 5.1 item 7 (the 100% gate), section 5.2 (the endpoint case matrix), section 5.4 (this harness), and the endpoint inventory section.
+1. `docs/endpoint-acceptance-criteria.md` section 5.1 item 7 (the 100% gate), section 5.2 (the endpoint case matrix), section 5.4 (this harness), and the endpoint inventory section.
 2. `docs/prd-backend.md` section 8 (the acceptance evidence required), if the parent points you at it.
-3. `docs/design-identity-endpoints.md` section 1.1 (the problem `type` catalog), and `docs/design-identity-ddl.md` D9 plus the `schema_identity.identity_audit` table, so you assert the refusal audit against the shape the design actually froze.
+3. `docs/design/platform-error-model.md` section 1.1 (the problem `type` catalog), and `docs/design/identity-ddl.md` D9 plus the `schema_identity.identity_audit` table, so you assert the refusal audit against the shape the design actually froze.
 4. `.pi/api.json` for the base URL and the extension configuration, and `DATABASE_URL` for the database read connection (the same variable the binary reads, so there is one source of truth). Copy the committed template only if the file is missing:
    `cp .pi/api.json.example .pi/api.json`
 

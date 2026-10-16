@@ -1,7 +1,7 @@
 // Package http implements the identity bounded context's inbound HTTP adapter:
-// the request/response DTOs of docs/roadmap-backend.md section 5.2, the one-to-one
+// the request/response DTOs of docs/endpoint-acceptance-criteria.md section 5.2, the one-to-one
 // mapping from identity domain sentinels to the frozen RFC 7807 catalog of
-// docs/design-identity-endpoints.md section 1.1, and the huma operation
+// docs/design/platform-error-model.md section 1.1, and the huma operation
 // registrations.
 package http
 
@@ -23,7 +23,7 @@ import (
 )
 
 // RefreshCookieName is the single HttpOnly cookie name shared by login, refresh
-// and logout. The rotation contract of docs/design-identity-auth.md D5 requires
+// and logout. The rotation contract of docs/design/identity-auth.md D5 requires
 // one stable name across the three operations.
 const RefreshCookieName = "cl_refresh_token"
 

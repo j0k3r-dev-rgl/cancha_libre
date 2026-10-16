@@ -1,6 +1,6 @@
 # Identity auth: token, refresh and the active context
 
-This design closes the `docs/prd-backend.md` section 7 item *Auth token and branch-context transport*, which S1 (identity) implements. It decides how a work actor authenticates, how the active business + branch travels, and what makes a refusal immediate. It decides no table DDL (T1.3), no frozen route (the endpoint inventory of section 5.2 owns that), and no profile, DNI or phone detail (S4).
+This design closes the `docs/prd-backend.md` section 7 item *Auth token and branch-context transport*, which S1 (identity) implements. It decides how a work actor authenticates, how the active business + branch travels, and what makes a refusal immediate. It decides no table DDL (T1.3), no frozen route (the endpoint inventory of section 5.2 of [`docs/endpoint-acceptance-criteria.md`](../endpoint-acceptance-criteria.md) owns that), and no profile, DNI or phone detail (S4).
 
 ## Decisions
 

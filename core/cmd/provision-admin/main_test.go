@@ -187,7 +187,7 @@ func TestMissingEmailIsUsageError(t *testing.T) {
 }
 
 // TestMalformedEmailIsRefused proves S7: §4 of
-// docs/design-identity-endpoints.md lists a malformed email under *Refusals*
+// docs/design/provision-admin.md lists a malformed email under *Refusals*
 // (exit code 1), not under usage errors. Nothing is printed to stdout, a plain
 // reason goes to stderr, and no row is written.
 func TestMalformedEmailIsRefused(t *testing.T) {
@@ -258,7 +258,7 @@ func TestMissingJWTSecretIsUsageError(t *testing.T) {
 // TestValidEmailProvisionsPendingAdminInvitationAndAudit proves S7: a valid
 // --email on a fresh database exits 0, prints the activation URL exactly once,
 // creates a PENDING WORK account if absent, one single-use ADMIN invitation
-// matching the design-identity-ddl.md row shape, and one audit row whose actor
+// matching the docs/design/identity-ddl.md row shape, and one audit row whose actor
 // is the OS command invocation.
 func TestValidEmailProvisionsPendingAdminInvitationAndAudit(t *testing.T) {
 	pool := setupTestDatabase(t)
@@ -397,7 +397,7 @@ func TestSecondRunWithoutSupersedeRefusesWithoutDomainMutation(t *testing.T) {
 	if after.successAudits != before.successAudits {
 		t.Fatalf("success audit count = %d, want %d (no new provisioning audit row)", after.successAudits, before.successAudits)
 	}
-	// docs/design-identity-ddl.md §Refusals: a refusal records only the
+	// docs/design/identity-ddl.md §Refusals: a refusal records only the
 	// append-only REFUSED audit row and never domain state.
 	refusedAdded := countRows(t, pool, `
 		SELECT count(*) FROM schema_identity.identity_audit

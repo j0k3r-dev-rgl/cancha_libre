@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Locks the identity inventory's consistency invariants (T2, roadmap section 5.2).
+# Locks the identity inventory's consistency invariants (T2, section 5.2 of
+# docs/endpoint-acceptance-criteria.md).
 #
 # The defect class this prevents: the inventory rows and the error catalog are two
 # tables in two files describing one contract, so they can drift into two
@@ -17,12 +18,12 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-ROADMAP=docs/roadmap-backend.md
-DESIGN=docs/design-identity-endpoints.md
+CASES=docs/endpoint-acceptance-criteria.md
+CATALOG=docs/design/platform-error-model.md
 PRD=docs/prd-backend.md
 MVP=docs/mvp.md
 
-for f in "$ROADMAP" "$DESIGN" "$PRD" "$MVP"; do
+for f in "$CASES" "$CATALOG" "$PRD" "$MVP"; do
   [[ -f "$f" ]] || { echo "FAIL: missing required file $f" >&2; exit 2; }
 done
 
@@ -30,8 +31,8 @@ failures=0
 fail() { echo "FAIL: $*" >&2; failures=$((failures + 1)); }
 
 # The frozen inventory block only, so unrelated prose cannot satisfy a check.
-inventory="$(sed -n '/^#### Inventory — S1/,/^### 5\.3/p' "$ROADMAP")"
-[[ -n "$inventory" ]] || { echo "FAIL: the S1 inventory block was not found in $ROADMAP" >&2; exit 2; }
+inventory="$(sed -n '/^#### Inventory — S1/,/^### 5\.3/p' "$CASES")"
+[[ -n "$inventory" ]] || { echo "FAIL: the S1 inventory block was not found in $CASES" >&2; exit 2; }
 
 # 1. Every error slug used by an inventory row must exist in the catalog.
 # Matching only the error status codes is what isolates the errors column: success
@@ -42,7 +43,7 @@ ERROR_STATUS='400|401|403|404|405|409|415|422|500'
 used_slugs="$(printf '%s\n' "$inventory" | grep -oE "\`($ERROR_STATUS)\` [a-z-]+" | awk '{print $2}' | sort -u || true)"
 used_count="$(printf '%s\n' "$used_slugs" | grep -c . || true)"
 [[ "$used_count" -ge 8 ]] || fail "only $used_count error types found in the inventory; the row format probably changed and this check went blind"
-catalog_slugs="$(grep -oE 'urn:canchalibre:error:[a-z-]+' "$DESIGN" | sed 's/.*error://' | sort -u || true)"
+catalog_slugs="$(grep -oE 'urn:canchalibre:error:[a-z-]+' "$CATALOG" | sed 's/.*error://' | sort -u || true)"
 [[ -n "$used_slugs" ]] || fail "no error slugs found in the inventory; the row format changed"
 
 undefined="$(comm -23 <(printf '%s\n' "$used_slugs") <(printf '%s\n' "$catalog_slugs"))"
@@ -64,7 +65,7 @@ invented_ac="$(comm -23 <(printf '%s\n' "$cited_ac") <(printf '%s\n' "$defined_a
 [[ -z "$invented_ac" ]] || fail "inventory cites AC-* identifiers that do not exist in $MVP: $(echo "$invented_ac" | tr '\n' ' ')"
 
 # 4. The two inventory tables must cover exactly the same operations.
-table_ops() { sed -n "/^| Operation ID | $1/,/^$/p" "$ROADMAP" | grep -oE '^\| `[a-zA-Z]+`' | tr -d '|` ' | sort -u; }
+table_ops() { sed -n "/^| Operation ID | $1/,/^$/p" "$CASES" | grep -oE '^\| `[a-zA-Z]+`' | tr -d '|` ' | sort -u; }
 by_route="$(table_ops 'Method and path')"
 by_payload="$(table_ops 'Request shape')"
 if [[ -z "$by_route" ]] || [[ -z "$by_payload" ]]; then

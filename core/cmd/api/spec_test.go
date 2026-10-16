@@ -19,8 +19,8 @@ import (
 )
 
 // This file is the contract rule for the frozen S1 endpoint inventory
-// (docs/roadmap-backend.md section 5.2, docs/design-identity-endpoints.md
-// sections 1 and 3): it builds the real router with the real composition root,
+// (docs/endpoint-acceptance-criteria.md section 5.2, docs/design/platform-error-model.md
+// section 1, docs/design/identity-endpoints.md section 3): it builds the real router with the real composition root,
 // serves it over httptest and asserts against the fetched OpenAPI 3.1 document.
 //
 // The rules asserted here are the ones the design froze:
@@ -37,7 +37,7 @@ type operationSpec struct {
 }
 
 // documentedOperations is the frozen S1 inventory. It must match
-// docs/roadmap-backend.md section 5.2 row by row.
+// docs/endpoint-acceptance-criteria.md section 5.2 row by row.
 var documentedOperations = map[string]operationSpec{
 	"login":                   {http.MethodPost, "/api/v1/auth/login"},
 	"refresh":                 {http.MethodPost, "/api/v1/auth/refresh"},
@@ -165,7 +165,7 @@ var documentedErrors = map[string]map[int][]string{
 	},
 }
 
-// catalogTypes is the closed catalog of docs/design-identity-endpoints.md section 1.1.
+// catalogTypes is the closed catalog of docs/design/platform-error-model.md section 1.1.
 var catalogTypes = map[string]bool{
 	platformhttp.TypeValidation:           true,
 	platformhttp.TypeUnauthenticated:      true,

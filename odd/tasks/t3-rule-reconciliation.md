@@ -6,7 +6,7 @@ documentation and harness only — no product behaviour, no slice code. S1 stays
 this block closes.
 
 The two rules contradict committed artifacts, so this block is a reconciliation, not an addition:
-`docs/design-identity-ddl.md` was built around reversible `pressly/goose` migrations, and
+`docs/design/identity-ddl.md` was built around reversible `pressly/goose` migrations, and
 `.agents/skills/database-postgres-patterns/SKILL.md` *mandates* them. Both are now wrong.
 
 ## Specs
@@ -71,7 +71,7 @@ five vocabularies.
 
 ## Tasks
 
-- T3.1 Rewrite `docs/design-identity-ddl.md`: strip Goose, `-- +goose Up/Down`, reversibility and
+- T3.1 Rewrite `docs/design/identity-ddl.md`: strip Goose, `-- +goose Up/Down`, reversibility and
   the migration-ordering framing; keep the verified schema (tables, CHECKs, partial indexes,
   composite FK, exclusion keys) presented as apply-on-reset SQL. Preserve the falsification evidence
   that still applies and mark what the change invalidated. — S1, S5 — route: worker (parent-reviewed)
@@ -90,7 +90,7 @@ five vocabularies.
   standards), `.agents/skills/git-branching-workflow/SKILL.md` and
   `.agents/skills/git-commit-conventions/SKILL.md` (their migration examples and branch rules).
   — S1 — route: worker — commit: pending
-- T3.5 Reconcile `docs/design-identity-endpoints.md`: the `migrations/` paths in the layout, the
+- T3.5 Reconcile `docs/design/platform-module-layout.md` (the layout) and `docs/design/identity-endpoints.md` (the open item): the `migrations/` paths in the layout, the
   "each context owns its pool and migrations" line, and the open item that adds `goose` to `go.mod`.
   — S1, S5 — route: worker — commit: pending
 - T3.6 Extend `.pi/agents/api-contract-verifier.md` with the adversarial mandate: hostile and

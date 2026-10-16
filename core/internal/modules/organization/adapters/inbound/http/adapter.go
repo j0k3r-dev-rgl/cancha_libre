@@ -1,7 +1,7 @@
 // Package http implements the organization bounded context's inbound HTTP
-// adapter: the request/response DTOs of docs/roadmap-backend.md section 5.2, the
+// adapter: the request/response DTOs of docs/endpoint-acceptance-criteria.md section 5.2, the
 // one-to-one mapping from organization domain sentinels to the frozen RFC 7807
-// catalog of docs/design-identity-endpoints.md section 1.1, and the huma
+// catalog of docs/design/platform-error-model.md section 1.1, and the huma
 // operation registrations.
 package http
 

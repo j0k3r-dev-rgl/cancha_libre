@@ -92,7 +92,6 @@ var documentedErrors = map[string]map[int][]string{
 	},
 	"getOwnAccount": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
-		http.StatusNotFound:            {platformhttp.TypeNotFound},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
 	},
 	"listOwnContexts": {

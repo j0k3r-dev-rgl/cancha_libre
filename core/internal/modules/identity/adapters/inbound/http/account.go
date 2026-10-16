@@ -15,12 +15,12 @@ func registerGetOwnAccount(api huma.API, deps Deps) {
 		Method:        nethttp.MethodGet,
 		Path:          "/api/v1/me",
 		Summary:       "Read the authenticated account profile",
-		Description:   "Returns the profile of the authenticated actor. A closed account answers 404.",
+		Description:   "Returns the profile of the authenticated actor. The per-request guard is the authority on account status, so a closed or suspended account is refused with 403 before this operation runs.",
 		Tags:          []string{platformhttp.TagAccount},
 		DefaultStatus: nethttp.StatusOK,
 		Middlewares:   deps.guarded(api),
 		Responses: errorResponses(api,
-			err401Unauthenticated, err404NotFound, err500Internal,
+			err401Unauthenticated, err500Internal,
 		),
 	}, func(ctx context.Context, _ *emptyInput) (*getOwnAccountResponse, error) {
 		principal, err := deps.principal(ctx)

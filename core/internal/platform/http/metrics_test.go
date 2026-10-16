@@ -79,6 +79,21 @@ func TestMetricsHandlerRefusesWithoutTheConfiguredBearerToken(t *testing.T) {
 			handler: platformhttp.MetricsHandler(stubWriter{body: exposition}, testMetricsToken),
 		},
 		{
+			name:    "token with a leading character",
+			header:  "Bearer x" + testMetricsToken,
+			handler: platformhttp.MetricsHandler(stubWriter{body: exposition}, testMetricsToken),
+		},
+		{
+			name:    "double space after the scheme",
+			header:  "Bearer  " + testMetricsToken,
+			handler: platformhttp.MetricsHandler(stubWriter{body: exposition}, testMetricsToken),
+		},
+		{
+			name:    "bare scheme with no separator",
+			header:  "Bearer",
+			handler: platformhttp.MetricsHandler(stubWriter{body: exposition}, testMetricsToken),
+		},
+		{
 			name:    "bearer scheme with no value",
 			header:  "Bearer ",
 			handler: platformhttp.MetricsHandler(stubWriter{body: exposition}, testMetricsToken),
@@ -164,7 +179,7 @@ func TestRecordRequestsLabelsTheRouteTemplateNotTheRawPath(t *testing.T) {
 	}))
 
 	const rawThingID = "9f5d5b1a-8a3a-4a5b-9c5e-2b1f0e7d6c4a"
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/things/"+rawThingID, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/things/"+rawThingID+"?secret=victim@example.com", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
@@ -181,6 +196,9 @@ func TestRecordRequestsLabelsTheRouteTemplateNotTheRawPath(t *testing.T) {
 	}
 	if strings.Contains(seen[0].Route, rawThingID) {
 		t.Fatalf("the raw identifier reached the label value: %q", seen[0].Route)
+	}
+	if strings.Contains(seen[0].Route, "secret") || strings.Contains(seen[0].Route, "victim") {
+		t.Fatalf("the query string reached the label value: %q", seen[0].Route)
 	}
 	if seen[0].Method != http.MethodDelete {
 		t.Fatalf("expected DELETE, got %q", seen[0].Method)

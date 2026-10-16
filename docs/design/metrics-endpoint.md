@@ -1,7 +1,7 @@
 # Private metrics endpoint: surface, instruments and boundaries
 
 Status: implemented. Owner of the work unit: `odd/tasks/metrics-endpoint.md`.
-Related: [`docs/design-identity-endpoints.md`](design-identity-endpoints.md) (the RFC 7807 catalog this endpoint reuses), [`docs/roadmap-backend.md`](roadmap-backend.md) §7 and §8.
+Related: [`docs/design/platform-error-model.md`](platform-error-model.md) (the RFC 7807 catalog this endpoint reuses), [`docs/roadmap-backend.md`](../roadmap-backend.md) §7 and §8.
 
 ## Decisions
 
@@ -54,7 +54,7 @@ The startup log line carries `metrics_enabled` as a boolean, never the token.
 
 ## 4. What is deliberately excluded
 
-- **No separate listener or second port.** A Prometheus on another host must scrape this VPS, so the endpoint shares the API port and the token is the gate. Keeping the path out of the public hostname is a reverse-proxy rule, recorded in [`docs/roadmap-backend.md`](roadmap-backend.md) §7.
+- **No separate listener or second port.** A Prometheus on another host must scrape this VPS, so the endpoint shares the API port and the token is the gate. Keeping the path out of the public hostname is a reverse-proxy rule, recorded in [`docs/roadmap-backend.md`](../roadmap-backend.md) §7.
 - **No per-user or per-tenant labels.** They would be unbounded and they would leak identity into a monitoring system.
 - **No Prometheus or Grafana service, compose file or scrape configuration here.**
 - **No auth for the metrics endpoint beyond the bearer token**: no JWT, no role, no session. The token is a machine credential, not an actor.

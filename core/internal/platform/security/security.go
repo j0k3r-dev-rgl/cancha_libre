@@ -32,9 +32,9 @@ const (
 	argonKeyLen  uint32 = 32
 	argonSaltLen        = 16
 
-	// AccessTokenTTL is D4 from docs/design-identity-auth.md (30 minutes).
+	// AccessTokenTTL is D4 from docs/design/identity-auth.md (30 minutes).
 	AccessTokenTTL = 30 * time.Minute
-	// RefreshTokenTTL is D5 from docs/design-identity-auth.md (7 days).
+	// RefreshTokenTTL is D5 from docs/design/identity-auth.md (7 days).
 	RefreshTokenTTL = 7 * 24 * time.Hour
 	// DefaultInvitationTTL is the default invitation lifetime (24 hours).
 	DefaultInvitationTTL = 24 * time.Hour
@@ -176,7 +176,7 @@ func VerifyPassword(raw, encoded string) bool {
 	return subtle.ConstantTimeCompare(gotHash, wantHash) == 1
 }
 
-// AccessTokenClaims matches D3 of docs/design-identity-auth.md.
+// AccessTokenClaims matches D3 of docs/design/identity-auth.md.
 type AccessTokenClaims struct {
 	Subject   string              `json:"sub"`
 	Actor     actor.Role          `json:"actor"`

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runner for the section 5.4 empirical contract verification (docs/roadmap-backend.md).
+# Runner for the section 5.4 empirical contract verification (docs/endpoint-acceptance-criteria.md).
 #
 # This script owns the deterministic half of the harness: it boots the API on a
 # free port, waits until the liveness probe answers, proves the local database was
@@ -11,7 +11,7 @@
 #
 # Booting the API *is* the local reset: the binary drops the target database,
 # creates it again, applies every context's `schema/*.sql` in lexical order and
-# loads the seed under `core/dev/` (docs/design-identity-ddl.md, *Development
+# loads the seed under `core/dev/` (docs/design/identity-ddl.md, *Development
 # reset and seed*). The reset is unguarded by an explicit, re-confirmed decision,
 # so running this script destroys the local development database; that is the
 # point of the harness, not a side effect. A verdict is only meaningful against a
@@ -187,7 +187,8 @@ if [[ "${RESET_VERDICT}" == unavailable* ]]; then
 fi
 
 if [[ "${CHECK_ONLY}" -eq 1 ]]; then
-  # The lint gate of section 5 applies to every endpoint before its slice can
+  # The lint gate of section 5 (docs/endpoint-acceptance-criteria.md) applies to
+  # every endpoint before its slice can
   # close, so the runner enforces it instead of leaving it as a manual step.
   SPEC_FILE="$(mktemp -t canchalibre-spec.XXXXXX.json)"
   if ! curl -sf "${BASE_URL}/openapi.json" -o "${SPEC_FILE}"; then

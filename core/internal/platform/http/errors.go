@@ -10,7 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// Closed RFC 7807 problem-type catalog (docs/design-identity-endpoints.md §1.1).
+// Closed RFC 7807 problem-type catalog (docs/design/platform-error-model.md §1.1).
 const (
 	TypeValidation           = "urn:canchalibre:error:validation"
 	TypeUnauthenticated      = "urn:canchalibre:error:unauthenticated"

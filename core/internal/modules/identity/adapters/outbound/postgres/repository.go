@@ -301,7 +301,7 @@ func (r *Repository) RotateRefreshSession(ctx context.Context, currentHash, next
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Atomic single-winner exchange from docs/design-identity-ddl.md
+	// Atomic single-winner exchange from docs/design/identity-ddl.md
 	var s domain.RefreshSession
 	err = tx.QueryRow(ctx, `
 		WITH rotated AS (

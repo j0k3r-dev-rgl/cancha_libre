@@ -4,7 +4,7 @@
 // a password: it issues a single-use, expiring ADMIN invitation through the
 // identity use case and prints the activation URL exactly once to stdout.
 //
-// Contract: docs/design-identity-endpoints.md §4.
+// Contract: docs/design/provision-admin.md §4.
 package main
 
 import (
@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	// Exit codes frozen by docs/design-identity-endpoints.md §4.
+	// Exit codes frozen by docs/design/provision-admin.md §4.
 	exitOK      = 0
 	exitRefused = 1
 	exitUsage   = 2
@@ -78,7 +78,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	// Argument validation happens before any configuration read or connection, so
 	// an invalid invocation can never reach the database. The two rows of
-	// docs/design-identity-endpoints.md §4 that cover this case split the outcome:
+	// docs/design/provision-admin.md §4 that cover this case split the outcome:
 	// a missing required argument is a usage error (`2`), while a malformed email
 	// is listed under *Refusals*, whose exit code is `1`.
 	if strings.TrimSpace(email) == "" {

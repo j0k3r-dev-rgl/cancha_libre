@@ -22,7 +22,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-// VerifyScope executes the guard's single indexed lookup (docs/design-identity-ddl.md).
+// VerifyScope executes the guard's single indexed lookup (docs/design/identity-ddl.md).
 func (r *Repository) VerifyScope(ctx context.Context, accountID, businessID, branchID string) (actor.Role, error) {
 	accID, ok1 := actor.NormalizeUUID(accountID)
 	busID, ok2 := actor.NormalizeUUID(businessID)

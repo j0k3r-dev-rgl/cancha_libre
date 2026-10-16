@@ -1,6 +1,6 @@
 # Identity DDL and the minimum business/branch/membership spine
 
-This design closes the `docs/prd-backend.md` section 7 item *Concrete table DDL and exclusion predicates*, restricted to what S1 (identity) needs: the identity schema and the minimum spine (business, branch, membership) that memberships attach to. It pairs with [`docs/design-identity-auth.md`](design-identity-auth.md), which read from these tables. It decides no court, offer, reservation or payment table (S2, S3, S6) and no endpoint (the endpoint inventory owns routes).
+This design closes the `docs/prd-backend.md` section 7 item *Concrete table DDL and exclusion predicates*, restricted to what S1 (identity) needs: the identity schema and the minimum spine (business, branch, membership) that memberships attach to. It pairs with [`docs/design/identity-auth.md`](identity-auth.md), which read from these tables. It decides no court, offer, reservation or payment table (S2, S3, S6) and no endpoint (the endpoint inventory owns routes).
 
 The schema below is not speculative: every statement was applied to a real PostgreSQL 17 instance, falsified case by case, and the concurrent rotation path was run with two simultaneous transactions. The evidence is recorded in *Verification performed*. The DDL is applied by the reset as plain, non-versioned SQL — never by a migration tool (see *Development reset and seed*).
 
@@ -41,7 +41,7 @@ The routine runs in this order:
 4. Apply every context's `schema/*.sql` in lexical order (see *Placement*).
 5. Load the seed found under `core/dev/`.
 
-The seed is the layout T1.5 froze and it lives in two places. `core/dev/seed.topology.json` is committed and holds no credential: two businesses (`B1`, `B2`), three branches, the `OWNER` and `EMPLOYEE` memberships, the two platform actors (`ADMIN`, `SOPORTE`), the `PLAYER` customer, and the refusal matrix those rows exist to make refusable. Accounts are matched to that topology by email; the five passwords live in the git-ignored `.pi/api.json.local`, reached from `.pi/api.json` through `auth.accounts_file`. The load therefore creates the accounts for the five actors first, then their platform roles and memberships — the refusal matrix is what proves the seeded shape is the one section 5.4 needs.
+The seed is the layout T1.5 froze and it lives in two places. `core/dev/seed.topology.json` is committed and holds no credential: two businesses (`B1`, `B2`), three branches, the `OWNER` and `EMPLOYEE` memberships, the two platform actors (`ADMIN`, `SOPORTE`), the `PLAYER` customer, and the refusal matrix those rows exist to make refusable. Accounts are matched to that topology by email; the five passwords live in the git-ignored `.pi/api.json.local`, reached from `.pi/api.json` through `auth.accounts_file`. The load therefore creates the accounts for the five actors first, then their platform roles and memberships — the refusal matrix is what proves the seeded shape is the one section 5.4 of [`docs/endpoint-acceptance-criteria.md`](../endpoint-acceptance-criteria.md) needs.
 
 ### Accepted risk: the reset has no guard
 
@@ -348,4 +348,4 @@ Then: reuse of the rotated token inserted nothing, and family revocation revoked
 
 ## Next step
 
-T1.4 builds the section 5.4 verification harness (read-only subagent plus runner), T1.5 fixes the seed layout for the five actors referenced from `.pi/api.json` and consumed by the reset, and T1.6 pins `govulncheck` and decides whether `openapi.json` is committed.
+T1.4 builds the section 5.4 verification harness of [`docs/endpoint-acceptance-criteria.md`](../endpoint-acceptance-criteria.md) (read-only subagent plus runner), T1.5 fixes the seed layout for the five actors referenced from `.pi/api.json` and consumed by the reset, and T1.6 pins `govulncheck` and decides whether `openapi.json` is committed.

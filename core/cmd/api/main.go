@@ -78,7 +78,7 @@ func main() {
 		stopServer()
 	}()
 
-	slog.Info("starting CanchaLibre core API", "port", cfg.Port, "env", cfg.Env, "log_level", cfg.LogLevel.String())
+	slog.Info("starting CanchaLibre core API", "port", cfg.Port, "env", cfg.Env, "log_level", cfg.LogLevel.String(), "metrics_enabled", cfg.MetricsToken != "")
 
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server stopped unexpectedly", "error", err)

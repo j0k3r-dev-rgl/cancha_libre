@@ -22,13 +22,15 @@ import (
 	"canchalibre/core/internal/platform/authn"
 	"canchalibre/core/internal/platform/config"
 	platformhttp "canchalibre/core/internal/platform/http"
+	"canchalibre/core/internal/platform/metrics"
 )
 
 // newRouter wires the pgx pool, both bounded-context repositories, the bridge
 // that exposes organization scope lookups as identity's ScopePort, the identity
 // service as organization's IdentityPort, the authn guard and every S1 operation
 // into one Chi router. It is a function instead of inline wiring so the contract
-// test can build the real router without booting a server.
+// test can build the real router without booting a server. The private metrics
+// endpoint is part of the wiring because its gauges read this very pool.
 func newRouter(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*chi.Mux, huma.API) {
 	if logger == nil {
 		logger = slog.Default()
@@ -55,7 +57,27 @@ func newRouter(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*chi
 
 	guard := authn.NewGuard([]byte(cfg.JWTSecret), identityRepo, organizationRepo)
 
-	router, api := platformhttp.NewRouter(logger)
+	// Metrics are opt-in and the switch is the token: with no METRICS_TOKEN there is
+	// no recorder, no scrape handler and no per-request cost, and the private path
+	// is never mounted. With one, the registry is fed by the same pool the API
+	// serves from, so the gauges describe the real connection pool at scrape time.
+	opts := platformhttp.RouterOptions{Logger: logger}
+	if cfg.MetricsToken != "" {
+		registry := metrics.New()
+		registry.RegisterPoolGauges(func() metrics.PoolSnapshot {
+			stat := pool.Stat()
+			return metrics.PoolSnapshot{
+				Total:    stat.TotalConns(),
+				Idle:     stat.IdleConns(),
+				Acquired: stat.AcquiredConns(),
+				Max:      stat.MaxConns(),
+			}
+		})
+		opts.Recorder = registry
+		opts.Metrics = platformhttp.MetricsHandler(registry, cfg.MetricsToken)
+	}
+
+	router, api := platformhttp.NewRouter(opts)
 	identityhttp.Register(api, identityhttp.Deps{Service: identityService, Guard: guard, Logger: logger})
 	organizationhttp.Register(api, organizationhttp.Deps{Service: organizationService, Guard: guard, Logger: logger})
 

@@ -74,4 +74,8 @@ chk S5 'grep -q "db_fingerprint" scripts/verify-contract.sh'
 chk S5 'grep -q "reset evidence" scripts/verify-contract.sh'
 
 bash scripts/check-inventory-consistency.sh
+chk S1 '[ "$(sed -n "/^| Operation ID | Method and path/,/^$/p" docs/roadmap-backend.md | grep -cE "^\| \`[a-zA-Z]+\`")" -eq 17 ]'
+chk S1 'grep -q "inviteSupportOperator" docs/roadmap-backend.md && grep -q "revokeSupportOperator" docs/roadmap-backend.md'
+chk S1 'grep -q "password_recovery_token" docs/design-identity-ddl.md'
+chk S1 'grep -qi "argon2id" docs/design-identity-ddl.md && grep -qi "12 characters" docs/design-identity-endpoints.md'
 if [ "$fail" -eq 0 ]; then echo "ALL T3 CHECKS PASS"; else echo "T3 CHECKS FAILED"; exit 1; fi

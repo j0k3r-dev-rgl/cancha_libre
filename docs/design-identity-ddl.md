@@ -131,6 +131,19 @@ CREATE TABLE schema_identity.refresh_session (
 CREATE INDEX refresh_session_family_idx ON schema_identity.refresh_session (family_id);
 CREATE INDEX refresh_session_account_idx ON schema_identity.refresh_session (account_id);
 
+-- Single-use password recovery token. The raw token is never stored, only its SHA-256 hash.
+CREATE TABLE schema_identity.password_recovery_token (
+    id          uuid        PRIMARY KEY,
+    account_id  uuid        NOT NULL REFERENCES schema_identity.account (id) ON DELETE CASCADE,
+    token_hash  bytea       NOT NULL UNIQUE,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    expires_at  timestamptz NOT NULL,
+    consumed_at timestamptz NULL
+);
+
+CREATE INDEX password_recovery_token_account_idx
+    ON schema_identity.password_recovery_token (account_id);
+
 -- Append-only record of identity decisions, including refusals. Audit is not
 -- domain state: recording a refusal does not violate "rejection mutates nothing".
 CREATE TABLE schema_identity.identity_audit (
@@ -302,7 +315,7 @@ Then: reuse of the rotated token inserted nothing, and family revocation revoked
 | Entity tables beyond the spine (courts, offers, reservations, payments) | Different contexts, different slices. | S2, S3, S6 |
 | The first-`ADMIN` private command and its argument surface | Command contract, not table shape. | S1 |
 | DNI fingerprint, suffix length and secret rotation | S4's subject; no identity-verification table is created before it. | S4 |
-| `password_hash` algorithm and parameters | The column stores whatever the chosen algorithm emits; the choice is a security decision S1 makes with `golang-security`. | S1 |
+| `password_hash` algorithm and parameters | Resolved for S1: **Argon2id** (`golang.org/x/crypto/argon2`, `m=19456` KiB, `t=1`, `p=2`, 16-byte salt, 32-byte key) in PHC format `$argon2id$v=19$m=19456,t=1,p=2$<salt>$<hash>`, over Unicode NFC normalized passwords of 12 characters minimum and 128 bytes maximum. | S1 (closed) |
 | Retention and deletion jobs (30-day DNI clock, `BE-ID-08`) | Requires the S4 tables. | S4 |
 
 ## Review checklist

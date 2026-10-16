@@ -91,6 +91,54 @@ func TestParseLogLevelNamesTheAcceptedValues(t *testing.T) {
 	}
 }
 
+// TestLoadLeavesMetricsDisabledWithoutMetricsToken pins the switch the endpoint
+// hangs from: an unset (or empty) METRICS_TOKEN is a valid configuration that
+// disables metrics, not a startup failure.
+func TestLoadLeavesMetricsDisabledWithoutMetricsToken(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5435/canchalibre_dev?sslmode=disable")
+	t.Setenv("JWT_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("METRICS_TOKEN", "")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MetricsToken != "" {
+		t.Fatalf("expected metrics to be disabled, got token %q", cfg.MetricsToken)
+	}
+}
+
+// TestLoadRejectsMetricsTokenShorterThan32Bytes proves a weak scrape credential
+// stops the process instead of silently serving the metrics surface behind a
+// token an attacker can guess.
+func TestLoadRejectsMetricsTokenShorterThan32Bytes(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5435/canchalibre_dev?sslmode=disable")
+	t.Setenv("JWT_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("METRICS_TOKEN", "short-token")
+
+	if _, err := config.Load(); err == nil {
+		t.Fatal("expected an error for a METRICS_TOKEN shorter than 32 bytes, got nil")
+	}
+}
+
+// TestLoadReadsMetricsToken keeps the operator's value exactly, so the handler
+// compares against what was configured and not a normalized variant.
+func TestLoadReadsMetricsToken(t *testing.T) {
+	const token = "0123456789abcdef0123456789abcdef"
+
+	t.Setenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5435/canchalibre_dev?sslmode=disable")
+	t.Setenv("JWT_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("METRICS_TOKEN", token)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MetricsToken != token {
+		t.Fatalf("expected token %q, got %q", token, cfg.MetricsToken)
+	}
+}
+
 // TestLoadRejectsAnUnknownLogLevel proves the rejection reaches Load itself, so a
 // typo in the environment stops the process instead of silently logging at info.
 func TestLoadRejectsAnUnknownLogLevel(t *testing.T) {

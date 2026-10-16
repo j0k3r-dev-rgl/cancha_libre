@@ -11,6 +11,12 @@ import (
 // MinJWTSecretBytes is the minimum length required for the HS256 signing key.
 const MinJWTSecretBytes = 32
 
+// MinMetricsTokenBytes is the minimum length required for the bearer token that
+// gates the private /metrics endpoint. A token below it stops the process, since
+// the endpoint exposes operational detail and a guessable credential is worse
+// than no endpoint at all.
+const MinMetricsTokenBytes = 32
+
 // Config holds runtime configuration loaded from environment variables.
 type Config struct {
 	Port              string
@@ -21,6 +27,7 @@ type Config struct {
 	SeedTopologyPath  string
 	AccountsFilePath  string
 	LogLevel          slog.Level
+	MetricsToken      string
 }
 
 // ParseLogLevel maps LOG_LEVEL to a structured-log level. An empty value is the
@@ -86,6 +93,14 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	// Metrics are opt-in: an unset token means the endpoint is never mounted, so
+	// there is no private surface and no per-request cost. A token that is set but
+	// weak is refused instead of downgraded, mirroring LOG_LEVEL and JWT_SECRET.
+	metricsToken := strings.TrimSpace(os.Getenv("METRICS_TOKEN"))
+	if metricsToken != "" && len(metricsToken) < MinMetricsTokenBytes {
+		return Config{}, fmt.Errorf("METRICS_TOKEN must be at least %d bytes when set", MinMetricsTokenBytes)
+	}
+
 	return Config{
 		Port:              port,
 		Env:               env,
@@ -95,5 +110,6 @@ func Load() (Config, error) {
 		SeedTopologyPath:  seedPath,
 		AccountsFilePath:  accountsPath,
 		LogLevel:          logLevel,
+		MetricsToken:      metricsToken,
 	}, nil
 }

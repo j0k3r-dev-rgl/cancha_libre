@@ -447,3 +447,25 @@ func TestOpenAPISpecUsesOnlyTheClosedCatalogAndNeverAboutBlank(t *testing.T) {
 		}
 	}
 }
+
+// TestOpenAPISpecNeverPublishesThePrivateMetricsPath keeps the scrape endpoint out
+// of the contract every client reads. It is a raw router route precisely so that
+// it cannot appear here, and this test is what keeps it that way if someone later
+// registers it with huma.
+func TestOpenAPISpecNeverPublishesThePrivateMetricsPath(t *testing.T) {
+	doc, raw := fetchSpec(t)
+
+	if _, ok := doc.Paths[platformhttp.MetricsPath]; ok {
+		t.Fatalf("the private scrape path %q is published in the OpenAPI document", platformhttp.MetricsPath)
+	}
+	for path, methods := range doc.Paths {
+		for method, op := range methods {
+			if op.OperationID == "metrics" {
+				t.Fatalf("operation %q is published at %s %s", op.OperationID, method, path)
+			}
+		}
+	}
+	if strings.Contains(string(raw), `"/metrics"`) {
+		t.Fatal("the served OpenAPI document mentions the private scrape path")
+	}
+}

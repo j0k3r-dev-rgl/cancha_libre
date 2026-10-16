@@ -26,7 +26,7 @@ func Load() Config {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@localhost:5432/canchalibre_dev?sslmode=disable"
+		dbURL = "postgres://postgres:postgres@localhost:5435/canchalibre_dev?sslmode=disable"
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")

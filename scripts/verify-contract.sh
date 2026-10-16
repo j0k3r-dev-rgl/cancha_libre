@@ -34,7 +34,7 @@ READY_TIMEOUT_SECONDS="${READY_TIMEOUT_SECONDS:-60}"
 # The reset target is whatever the API connects to, so the fingerprint reads the
 # same URL the binary reads. The fallback is config.Load's development default
 # (core/internal/config/config.go); it applies only when the environment is silent.
-DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/canchalibre_dev?sslmode=disable}"
+DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@localhost:5435/canchalibre_dev?sslmode=disable}"
 CHECK_ONLY=0
 
 case "${1:-}" in

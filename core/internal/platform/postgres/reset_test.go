@@ -11,9 +11,9 @@ import (
 )
 
 func TestResetAndSeedRecreatesDatabaseAndLoadsTopology(t *testing.T) {
-	dbURL := os.Getenv("DATABASE_URL")
+	dbURL := os.Getenv("TEST_DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@localhost:5435/canchalibre_dev?sslmode=disable"
+		dbURL = "postgres://postgres:postgres@localhost:5435/canchalibre_test_platform?sslmode=disable"
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

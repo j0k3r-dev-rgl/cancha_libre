@@ -212,6 +212,25 @@ func resolvePath(path string) string {
 	if _, err := os.Stat(trimmed); err == nil {
 		return trimmed
 	}
+	if wd, err := os.Getwd(); err == nil {
+		dir := wd
+		for i := 0; i < 8; i++ {
+			for _, candidate := range []string{
+				filepath.Join(dir, path),
+				filepath.Join(dir, "core", path),
+				filepath.Join(dir, trimmed),
+			} {
+				if _, err := os.Stat(candidate); err == nil {
+					return candidate
+				}
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
 	return path
 }
 

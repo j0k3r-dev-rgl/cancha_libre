@@ -14,7 +14,7 @@ import (
 func TestHealthAndPingEndpoints(t *testing.T) {
 	t.Parallel()
 
-	router, _ := platformhttp.NewRouter()
+	router, _ := platformhttp.NewRouter(discardLogger())
 
 	for _, tc := range []struct {
 		path string
@@ -44,7 +44,7 @@ func TestHealthAndPingEndpoints(t *testing.T) {
 func TestUnrouted404AndWrongMethod405ReturnRFC7807(t *testing.T) {
 	t.Parallel()
 
-	router, _ := platformhttp.NewRouter()
+	router, _ := platformhttp.NewRouter(discardLogger())
 
 	// Unrouted path -> 404 urn:canchalibre:error:not-found
 	req404 := httptest.NewRequest(http.MethodGet, "/api/v1/does-not-exist", nil)
@@ -86,7 +86,7 @@ func TestUnrouted404AndWrongMethod405ReturnRFC7807(t *testing.T) {
 func TestTotalFailClosedErrorOverrideNeverEmitsAboutBlank(t *testing.T) {
 	t.Parallel()
 
-	_, _ = platformhttp.NewRouter()
+	_, _ = platformhttp.NewRouter(discardLogger())
 
 	for _, status := range []int{400, 401, 403, 404, 405, 409, 415, 422, 500, 418, 503} {
 		errModel := platformhttp.NewStatusError(status, "test error")
@@ -108,7 +108,7 @@ func TestTotalFailClosedErrorOverrideNeverEmitsAboutBlank(t *testing.T) {
 func TestOpenAPIContractInvariants(t *testing.T) {
 	t.Parallel()
 
-	router, _ := platformhttp.NewRouter()
+	router, _ := platformhttp.NewRouter(discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
 	rec := httptest.NewRecorder()

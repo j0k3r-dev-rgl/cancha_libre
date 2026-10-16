@@ -55,7 +55,7 @@ func newRouter(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*chi
 
 	guard := authn.NewGuard([]byte(cfg.JWTSecret), identityRepo, organizationRepo)
 
-	router, api := platformhttp.NewRouter()
+	router, api := platformhttp.NewRouter(logger)
 	identityhttp.Register(api, identityhttp.Deps{Service: identityService, Guard: guard, Logger: logger})
 	organizationhttp.Register(api, organizationhttp.Deps{Service: organizationService, Guard: guard, Logger: logger})
 

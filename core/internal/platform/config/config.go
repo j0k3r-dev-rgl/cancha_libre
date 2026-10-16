@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -19,6 +20,27 @@ type Config struct {
 	InvitationURLBase string
 	SeedTopologyPath  string
 	AccountsFilePath  string
+	LogLevel          slog.Level
+}
+
+// ParseLogLevel maps LOG_LEVEL to a structured-log level. An empty value is the
+// `info` default; anything else must name one of the four levels, because a typo
+// must stop the process rather than silently hide the logs the operator asked for.
+func ParseLogLevel(raw string) (slog.Level, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "":
+		return slog.LevelInfo, nil
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "warn":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return slog.LevelInfo, fmt.Errorf("LOG_LEVEL %q is not one of debug, info, warn, error", raw)
+	}
 }
 
 // Load reads configuration from the environment. DATABASE_URL and JWT_SECRET are
@@ -59,6 +81,11 @@ func Load() (Config, error) {
 		accountsPath = "../.pi/api.json.local"
 	}
 
+	logLevel, err := ParseLogLevel(os.Getenv("LOG_LEVEL"))
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		Port:              port,
 		Env:               env,
@@ -67,5 +94,6 @@ func Load() (Config, error) {
 		InvitationURLBase: invBase,
 		SeedTopologyPath:  seedPath,
 		AccountsFilePath:  accountsPath,
+		LogLevel:          logLevel,
 	}, nil
 }

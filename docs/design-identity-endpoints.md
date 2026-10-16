@@ -166,6 +166,7 @@ The scratch module was removed; nothing was written to `core/`.
 | The guard's per-request query shape | Already frozen by the T1.3 design; this document only places the middleware. | — |
 | Token signing algorithm and key parameters | Resolved for S1: access tokens use `HS256` (`HMAC-SHA256`) with a mandatory `JWT_SECRET` of at least 32 bytes; passwords use `Argon2id` (`m=19456, t=1, p=2`) with Unicode NFC normalization and a minimum of 12 characters; opaque tokens are persisted as `SHA-256`. | S1 (closed) |
 | A `SOPORTE` invitation path in the inventory | Resolved for S1: `ADMIN` provisions and revokes `SOPORTE` from the platform via `POST /api/v1/admin/support-operators` (`inviteSupportOperator`) and `DELETE /api/v1/admin/support-operators/{accountId}` (`revokeSupportOperator`). | S1 (closed) |
+| Server-side failure logging and the log level | Resolved for S1: the structured log level comes from `LOG_LEVEL` (`debug`, `info`, `warn`, `error`, default `info`); an unrecognized value fails startup instead of falling back silently, because a typo must not hide the logs the operator asked for. A recovered panic keeps the process alive, answers the declared `500` with `urn:canchalibre:error:internal` instead of a body-less 500, and is recorded at ERROR with its stack and request id, so it correlates with the access-log line of the same request; the unexpected-error lines of both adapters carry that request id too. An expired request deadline is recorded at ERROR with its request id, while the `504` it returns stays a transport-level answer: the catalog maps a status to exactly one type and has no `504` slug, so publishing it as a problem document would mean declaring a new status on every operation, and a transport timeout is not a refusal an operation performs. | S1 (closed) |
 
 ## 7. Review checklist
 
@@ -176,6 +177,7 @@ The scratch module was removed; nothing was written to `core/`.
 - [ ] An unrouted path and a wrong method both return problem details, not `text/plain`.
 - [ ] A `404` for a missing record and a `404` for another actor's record are byte-identical in shape.
 - [ ] Refusals leave domain tables unchanged; only `identity_audit` may gain a row.
+- [ ] A panic inside an operation answers `500` with a catalog URN and is logged at ERROR with its stack and the request id; an expired request deadline is logged at ERROR, and the `504` it returns is the recorded transport-level boundary.
 - [ ] No context imports another context's `core`.
 - [ ] `response.go` is gone and no caller regressed.
 - [ ] `provision-admin` prints the activation URL once, stores no password, and refuses without `--supersede` when an unexpired invitation exists.

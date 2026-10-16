@@ -131,7 +131,8 @@ func (d Deps) fail(ctx context.Context, err error) error {
 	if problem := problemFromDomain(err); problem != nil {
 		return problem
 	}
-	d.Logger.ErrorContext(ctx, "organization request failed with an unexpected error", "error", err)
+	d.Logger.ErrorContext(ctx, "organization request failed with an unexpected error",
+		"error", err, "request_id", platformhttp.RequestID(ctx))
 	return platformhttp.NewTypedError(nethttp.StatusInternalServerError, platformhttp.TypeInternal, "Unexpected internal server error.")
 }
 

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"time"
@@ -11,6 +12,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
+
+// RequestTimeout is the per-request deadline enforced by the timeout middleware.
+const RequestTimeout = 30 * time.Second
 
 var reflectTypeProblemDetail = reflect.TypeOf(ProblemDetail{})
 
@@ -42,17 +46,24 @@ const APIServerURL = "http://localhost:8080"
 // returns both the Chi mux and the huma.API instance so modules can register
 // their operations. The platform audits nothing: the identity use cases are the
 // single writer of REFUSED rows, because a transport-level duplicate was the F1
-// defect.
-func NewRouter() (*chi.Mux, huma.API) {
+// defect. It does own the two server-side failure paths the access log alone could
+// not describe: a recovered panic and an expired request deadline, both recorded
+// through the logger it receives.
+func NewRouter(logger *slog.Logger) (*chi.Mux, huma.API) {
 	InstallErrorOverride()
+
+	if logger == nil {
+		logger = slog.Default()
+	}
 
 	r := chi.NewRouter()
 
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.Logger)
-	r.Use(chimiddleware.Recoverer)
-	r.Use(chimiddleware.Timeout(30 * time.Second))
+	r.Use(RecoverPanic(logger))
+	r.Use(chimiddleware.Timeout(RequestTimeout))
+	r.Use(LogTimeouts(logger, RequestTimeout))
 
 	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
 		WriteProblem(w, http.StatusNotFound, TypeNotFound, "The requested resource was not found.")

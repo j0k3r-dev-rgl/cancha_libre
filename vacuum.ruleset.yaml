@@ -8,9 +8,11 @@
 # Exit code 0 and a quality score of at least 98 are required before an endpoint
 # may be considered documented. The score floor is what makes the silences below
 # load-bearing: with the recommended ruleset and no silences the same spec scores
-# 96, which fails the gate. The rules silenced below are the only ones, and each
-# silence carries its justification. Anything else the recommended ruleset
-# reports is a finding to fix, not to ignore.
+# below the floor, which fails the gate. The rules silenced below are the only
+# ones, and each silence carries its justification. Anything else the recommended
+# ruleset reports is a finding to fix, not to ignore. `oas3-missing-example` is
+# deliberately NOT silenced: the project owns its RFC 7807 error model and every
+# documented response carries a per-error example, so the rule is enforced.
 
 extends: [[vacuum:oas, recommended]]
 
@@ -33,9 +35,3 @@ rules:
 
   # ErrorDetail.value is an untyped `any` field inside huma's error model.
   oas-missing-type: off
-
-  # Accepted cost: this rule also stops enforcing examples on our own success
-  # responses. It stays off only while huma owns the error schemas, which ship
-  # without examples. Re-enable it in the same task that gives the project its
-  # own RFC 7807 error model.
-  oas3-missing-example: off

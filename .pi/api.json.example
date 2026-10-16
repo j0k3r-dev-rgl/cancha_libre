@@ -10,7 +10,7 @@
   "auth": {
     "type": "login",
     "login_path": "/api/v1/auth/login",
-    "identifier_field": "identifier",
+    "identifier_field": "email",
     "accounts_file": ".pi/api.json.local",
     "account_alias": "ADMIN"
   },

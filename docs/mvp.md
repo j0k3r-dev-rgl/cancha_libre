@@ -64,7 +64,7 @@ CanchaLibre helps court owners offer rental slots, manage branch operations, and
 ### Membership rules
 
 - A business may have multiple co-owners with equal access to its branches. Only the platform administrator assigns or revokes them. Revoking the last co-owner is refused until a replacement is assigned.
-- An owner may manage multiple branches of their business, including several in the same city. Ownership across separate businesses is not specified in this draft.
+- An owner may manage multiple branches of their business, including several in the same city. The data model supports one work account belonging to more than one business, but the MVP restricts each work account to a single business while this restriction is enabled. This is a temporary product restriction, not a permanent rule: enabling multi-business work accounts requires revisiting this rule and its authorization checks, not a data migration.
 - Employees may belong to multiple branches. Staff must operate in an explicitly selected authorized context.
 - Revoking access removes authority for that context, not another independently authorized branch.
 - Customer and work accounts are separate, even when they use the same email address. Sign-in distinguishes the two account contexts; credentials, recovery, and permissions remain independent. Sharing an email does not link them. Customer DNI uniqueness applies to customer profiles, not to work accounts.
@@ -205,6 +205,7 @@ A DNI already associated with another customer account prevents booking enableme
 - Once booking eligibility has been enabled, DNI corrections require restricted support to assess legitimacy and duplicates and record the change.
 - A duplicate claim prevents the claimant's booking enablement, but does not automatically restrict the existing account. Support may restrict it if evidence warrants doing so. The claim alone never establishes legitimacy or authorizes reassignment.
 - Conflicts are handled through restricted support outside the MVP interface, without exposing the other account's information or branch operational data. If account recovery cannot resolve the conflict, support performs a private live human review comparing the person with their document before correction/reassignment. Knowing the DNI or verifying a phone is insufficient. Record the decision and rationale without retaining document photos, recordings, or automated identity-verification output.
+- No interface, endpoint, or storage path exists for identity images. A document is inspected live by restricted support only; the platform never receives, uploads, transmits, stores, or later deletes a document photo, recording, or automated verification output. This is a hard prohibition, not a retention policy, and it must not be implemented "for later review".
 - After effective account closure, retain the fingerprint and final digits for **30 days**, preventing reuse during that period, then delete them. This does not delete establishment reservation history. This product retention policy requires legal review before operation; it is not a claim of regulatory compliance.
 
 ## 8. Manual payment information
@@ -371,7 +372,7 @@ If these checks show that the agreed scope cannot be met, return for a product d
 
 ## 13. Explicitly outside this MVP
 
-- AI-assisted identity verification, automated DNI photo processing, and retention of document photos or review recordings. The restricted live human support review in section 7 is included, but does not make every customer a verified identity.
+- AI-assisted identity verification, automated DNI photo processing, and any retention of document photos or review recordings; the platform has no upload, transmission, storage, or deletion path for identity images. The restricted live human support review in section 7 is included, but does not make every customer a verified identity.
 - Online payment processing, automated collections/refunds, and individual payment/refund ledgers.
 - Automatic reservation acceptance, waitlists, or automatic revival of closed requests.
 - Reprogramming that requires a customer's new acceptance.

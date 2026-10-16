@@ -10,9 +10,16 @@
 !.engram/config.json
 
 # Pi API test tooling.
-# The shared config is committed: it carries only the base URL, the framework and
-# the response limits, with no credentials. Machine-specific overrides (real
-# credentials, keys) belong in the .local variant, which is never committed.
+# `.pi/api.json` is machine state, not shared state: `api_login` persists the live
+# access_token into the file it reads (see .pi/extensions/api-tools/src/tools.ts),
+# so it is never committed. Git applies ignore rules only to untracked files, so
+# this entry only works while the file stays out of the index.
+# The committed `.pi/api.json.example` carries the shared shape — base URL,
+# framework and response limits, never a credential — and is copied once per
+# checkout:  cp .pi/api.json.example .pi/api.json
+# `.pi/api.json.local` is ignored as a guard for machine-specific overrides, but
+# the extension does not read it today.
+.pi/api.json
 .pi/api.json.local
 .pi/extensions/*/node_modules/
 

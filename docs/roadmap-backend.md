@@ -183,7 +183,13 @@ Documentation and verification are the same loop here: the spec is the claim and
 
 **Definition of done for an endpoint:** it appears in the generated OpenAPI 3.1 spec, **and** every case in the table above was exercised against a running instance through the API tooling, **and** the observed status codes and problem `type` values match the contract, **and** every refusal was confirmed not to have mutated data. An endpoint in the spec with an uncovered case fails its slice.
 
-**Tooling:** the project-local `api-tools` extension at `.pi/extensions/api-tools` provides `api_status`, `api_auth_status`, `api_login`, `api_rest_request`, `api_swagger` and `api_graphql`. It reads exactly `.pi/api.json` in the project root — no parent lookup and no `.local` override (`src/config.ts:206`). That file is committed and carries no credentials: the base URL, the framework and the response limits only. The runtime token is not part of it either: `api_login` persists the `access_token` into the same path (`src/tools.ts:224`), so a login mutates a tracked file, and the extension warns when the file is tracked (`api_json_tracked`). Where that token lives is an open decision — see section 8.
+**Tooling:** the project-local `api-tools` extension at `.pi/extensions/api-tools` provides `api_status`, `api_auth_status`, `api_login`, `api_rest_request`, `api_swagger` and `api_graphql`. It reads exactly `.pi/api.json` in the project root — no parent lookup and no `.local` override (`src/config.ts:206`) — and returns a disabled configuration when that file is missing, so each checkout copies the committed template once:
+
+```bash
+cp .pi/api.json.example .pi/api.json
+```
+
+`.pi/api.json` is gitignored machine state, because `api_login` persists the live `access_token` into the very file it reads (`src/tools.ts:224`). The committed `.pi/api.json.example` carries the shared shape — base URL, framework and response limits — and never a credential or a token. That is also why the extension's own `api_json_tracked` warning must stay silent here: the file it reads may not be tracked, since git applies ignore rules only to untracked files.
 
 **Subagent:** a project subagent exercises the endpoints — it logs in as each actor, hits every documented case, reconciles the spec against observed behaviour, and returns a case matrix with a verdict per cell plus the list of documented cases it could not cover. It is read-only over the repository: it never edits source, and its only side effects are the HTTP requests it is asked to make.
 
@@ -237,6 +243,5 @@ These are not resolved by code and each one blocks real operation, not developme
 - **T0.4 (live error response):** the documented 500 is never exercised at runtime because `/health` and `/api/v1/ping` have no failure path. It is observed in S1 against a handler that can actually fail, with the same RFC 7807 media type the contract already declares.
 - **Subagent definition:** the runner for section 5.4 must be created in the project; the definition location, model and effort settings are still to be confirmed, and its tool allowlist must exclude repository writes.
 - **Seed credentials:** the file layout for the five actor accounts and the two-branch dataset.
-- **Runtime token location:** `api_login` persists `access_token` into `.pi/api.json` (`src/tools.ts:224`), which is now a tracked file, and the extension warns about exactly that (`api_json_tracked`). The ignored `.pi/api.json.local` variant is not read by the extension, so it cannot hold the token today. Decide where the runtime token lives — a gitignored path the extension writes, or a config assembled per run — before section 5.4 runs against a real login, and update the `.gitignore` comment that currently promises the `.local` override.
 - **Committed spec:** whether `openapi.json` is committed as a reviewed artifact in each slice or generated only during checks.
 - **Remaining technical design from `docs/prd-backend.md` §7:** JWT claim layout, TTL/refresh and branch-context transport; concrete DDL and exclusion predicates; batch ceilings and pagination shapes; Evolution REST/webhook contract and durable retries; HMAC secret rotation and stored suffix length; public photo storage.

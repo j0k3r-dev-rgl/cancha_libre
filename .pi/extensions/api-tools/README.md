@@ -26,6 +26,14 @@ The extension reads exactly `<ctx.cwd>/.pi/api.json`.
 - `enabled` must be exactly `true`
 - `graphql_url` alone never enables GraphQL
 
+In the CanchaLibre repository the committed template is `.pi/api.json.example`; copy it once per checkout:
+
+```bash
+cp .pi/api.json.example .pi/api.json
+```
+
+`.pi/api.json` is gitignored on purpose: `api_login` persists the live `access_token` into the file it reads, so that file is machine state and must never be committed. A missing `.pi/api.json` leaves the extension disabled rather than failing loudly.
+
 ## Example config
 
 ```json

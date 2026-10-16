@@ -9,3 +9,7 @@ go = "1.27.2"
 # shipped dependency closure (huma + chi only) is unaffected. 0.33.1 exists but
 # is held back by mise's minimum_release_age supply-chain guard.
 "aqua:daveshanley/vacuum" = "0.33.0"
+# Go vulnerability scanner (T0.1 evidence, T1.6 pin). Installed through mise so
+# the audit reproduces from the repository instead of `@latest`: the same
+# closure is scanned on every machine, and no toolchain version floats.
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"

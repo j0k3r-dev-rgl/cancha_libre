@@ -1,0 +1,32 @@
+[
+  {
+    "role": "ADMIN",
+    "username": "admin@canchalibre.local",
+    "email": "admin@canchalibre.local",
+    "password": "dev-only-change-me-admin"
+  },
+  {
+    "role": "OWNER",
+    "username": "owner@canchalibre.local",
+    "email": "owner@canchalibre.local",
+    "password": "dev-only-change-me-owner"
+  },
+  {
+    "role": "EMPLOYEE",
+    "username": "employee@canchalibre.local",
+    "email": "employee@canchalibre.local",
+    "password": "dev-only-change-me-employee"
+  },
+  {
+    "role": "PLAYER",
+    "username": "player@canchalibre.local",
+    "email": "player@canchalibre.local",
+    "password": "dev-only-change-me-player"
+  },
+  {
+    "role": "SOPORTE",
+    "username": "soporte@canchalibre.local",
+    "email": "soporte@canchalibre.local",
+    "password": "dev-only-change-me-soporte"
+  }
+]

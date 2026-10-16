@@ -1,0 +1,63 @@
+{
+  "$comment": "Development seed topology for the section 5.4 verification harness. This file holds NO credential: the five actor passwords live in the git-ignored .pi/api.json.local, referenced from .pi/api.json through auth.accounts_file. Accounts are matched to this file by email. Two businesses exist because section 5.4 requires more than one business and more than one branch: a cross-branch refusal inside one business must be distinguishable from a cross-business refusal.",
+  "businesses": [
+    {
+      "key": "B1",
+      "name": "Cancha Libre Dev",
+      "enabled": true,
+      "branches": [
+        { "key": "B1-CENTRAL", "name": "Central", "enabled": true },
+        { "key": "B1-NORTE", "name": "Norte", "enabled": true }
+      ]
+    },
+    {
+      "key": "B2",
+      "name": "Complejo Rivadavia Dev",
+      "enabled": true,
+      "branches": [
+        { "key": "B2-SUR", "name": "Sur", "enabled": true }
+      ]
+    }
+  ],
+  "memberships": [
+    {
+      "$comment": "OWNER is business-wide: branch null, equal access to every branch of B1. Refused on B2.",
+      "email": "owner@canchalibre.local",
+      "business": "B1",
+      "branch": null,
+      "role": "OWNER"
+    },
+    {
+      "$comment": "EMPLOYEE is branch-scoped to B1-CENTRAL. Refused on B1-NORTE (cross-branch, same business) and on B2 (cross-business).",
+      "email": "employee@canchalibre.local",
+      "business": "B1",
+      "branch": "B1-CENTRAL",
+      "role": "EMPLOYEE"
+    }
+  ],
+  "platformActors": [
+    {
+      "$comment": "No membership and no branch context: account.platform_role, never a membership. Refused on operational data.",
+      "email": "admin@canchalibre.local",
+      "role": "ADMIN"
+    },
+    {
+      "email": "soporte@canchalibre.local",
+      "role": "SOPORTE"
+    }
+  ],
+  "customers": [
+    {
+      "$comment": "PLAYER holds no membership: public browsing and own records only.",
+      "email": "player@canchalibre.local"
+    }
+  ],
+  "refusalMatrix": [
+    { "$comment": "The cases this topology exists to make refusable.", "actor": "OWNER", "context": "B2", "expected": "403" },
+    { "actor": "EMPLOYEE", "context": "B1-NORTE", "expected": "403" },
+    { "actor": "EMPLOYEE", "context": "B2-SUR", "expected": "403" },
+    { "actor": "ADMIN", "context": "B1-CENTRAL", "expected": "403" },
+    { "actor": "SOPORTE", "context": "B1-CENTRAL", "expected": "403" },
+    { "actor": "PLAYER", "context": "B1-CENTRAL", "expected": "403" }
+  ]
+}

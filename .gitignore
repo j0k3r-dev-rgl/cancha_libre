@@ -17,10 +17,25 @@
 # The committed `.pi/api.json.example` carries the shared shape — base URL,
 # framework and response limits, never a credential — and is copied once per
 # checkout:  cp .pi/api.json.example .pi/api.json
-# `.pi/api.json.local` is ignored as a guard for machine-specific overrides, but
-# the extension does not read it today.
+# `.pi/api.json.local` is ignored as a guard: it holds the development seed
+# credentials for the five actors (ADMIN, OWNER, EMPLOYEE, PLAYER, SOPORTE) and is
+# referenced from `.pi/api.json` through `auth.accounts_file`. The extension
+# requires that file to be git-ignored — it refuses a tracked or unignored
+# accounts file (see .pi/extensions/api-tools/src/accounts.ts) — so the layout
+# reuses this existing rule instead of adding a second one. Its committed shape is
+# `.pi/api.json.local.example`.
 .pi/api.json
 .pi/api.json.local
+
+# The OpenAPI document is generated at runtime from the Go types and never
+# committed: it declares `servers: http://localhost:8080` and localhost `$schema`
+# URLs, so a committed copy would bake a development URL into the repository.
+# `scripts/verify-contract.sh` fetches and lints it into a temp file instead.
+# The rule is anchored on purpose: a bare `openapi.json` would silently ignore an
+# unrelated document at any depth, such as a frontend's own.
+/openapi.json
+/core/openapi.json
+
 .pi/extensions/*/node_modules/
 
 # Research and investigation outputs

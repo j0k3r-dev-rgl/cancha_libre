@@ -8,7 +8,11 @@
     "cursor_ttl_seconds": 3600
   },
   "auth": {
-    "type": "none"
+    "type": "login",
+    "login_path": "/api/v1/auth/login",
+    "identifier_field": "identifier",
+    "accounts_file": ".pi/api.json.local",
+    "account_alias": "ADMIN"
   },
   "swagger": {
     "enabled": true,

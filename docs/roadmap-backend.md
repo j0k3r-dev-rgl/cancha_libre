@@ -33,7 +33,9 @@ The original capability split contained two cycles; both are resolved here.
 1. **`BE-ACC-05/06` need an organization spine.** Memberships attach to a business and a branch, so S1 owns the minimal spine (business, branch, membership). S2 then owns the commercial and public surface of the same context. S1 must not grow into full branch management.
 2. **`BE-ORG-03` needs confirmed coordinates before publication**, and geocoding sat in the discovery slice. Geocoding (`BE-DIS-03`) moved into S2; S5 keeps search, proximity and failure behaviour only. `BE-DIS-05` (Argentine timezone) is applied from S2 because lead times, the 180-day horizon and cutoffs all depend on it.
 
-## 3. Block T0 — OpenAPI 3.1 toolchain
+## 3. Blocks before the slices
+
+### Block T0 — OpenAPI 3.1 toolchain
 
 **Decision: `danielgtaylor/huma` v2 + `humachi`, pinned to v2.39.1.**
 
@@ -50,7 +52,7 @@ The original capability split contained two cycles; both are resolved here.
 
 **Why it must come first:** the OpenAI 3.1 toolchain determines route shape, parameter and body declaration style, and how error responses are described. Freezing routes before choosing it guarantees rewriting them.
 
-### Tasks
+#### Tasks
 
 | ID | Task | Evidence that closes it |
 | --- | --- | --- |
@@ -66,7 +68,7 @@ The original capability split contained two cycles; both are resolved here.
 
 **Closed by:** commit `477719b` (`feat(openapi): serve the OpenAPI 3.1 contract and gate its linting`), which carries the toolchain pins, the contract, the lint gate, the api-tools support and this roadmap. The specification round this roadmap builds on is committed as `f68f6d8` (`docs(core): apply the first decision round to the MVP and PRD`), so the sections cited from `docs/prd-backend.md` match the committed copy.
 
-### Dependency audit record (T0.1)
+#### Dependency audit record (T0.1)
 
 Audit run against `core/` with the Go vulnerability database of 2026-10-16.
 
@@ -77,13 +79,13 @@ Audit run against `core/` with the Go vulnerability database of 2026-10-16.
 - **Baseline noise, now closed.** On the 1.27.1 baseline `govulncheck` additionally reported five vulnerabilities in imported packages whose vulnerable symbols are never called (GO-2026-6610, 6609, 6607, 6605 and 6604, the last one Windows only) and two in required modules (`html/template`: GO-2026-6600 and 6599). All seven were also standard library issues fixed in 1.27.2, so the pinned toolchain reports none of them either. They are recorded so a subsequent audit does not report them as new.
 - **Dead code.** `internal/adapter/http/response.go` (`WriteJSON`, `WriteProblemDetails`, `ProblemDetails`) has no caller after the huma migration. It is resolved in S1.
 
-### Response `$schema` link convention (decision)
+#### Response `$schema` link convention (decision)
 
 huma's default `SchemaLinkTransformer` is kept. Every struct response body carries a `$schema` field pointing at `/schemas/{Type}.json` plus a `Link: </schemas/{Type}.json>; rel="describedBy"` header, and the same transformer declares that field in `components.schemas.{Type}` as `readOnly: true`.
 
 This was initially reported as contract drift; it is not. Verified against a running instance: the served body validates against the published contract. The outcome is a rule, recorded in `.agents/skills/api-contracts-openapi/SKILL.md`: a response DTO is not documented until a test asserts the `$schema` field, its target document and its read-only declaration in the contract. The documented `example` URL stays generic (`https://example.com/schemas/...`) because the configuration declares no `Servers`; the served value uses the request host.
 
-### Lint gate (T0.3)
+#### Lint gate (T0.3)
 
 The contract is linted with `vacuum`, pinned in `.mise.toml` and installed as a cosign-verified release binary through mise's aqua backend, so it never enters the shipped dependency closure. The rules come from `vacuum.ruleset.yaml`, which enables the recommended ruleset minus five rules, each silenced with its reason in that file.
 
@@ -100,6 +102,29 @@ The score floor is not decoration: it is what makes the silences load-bearing. W
 **Progress:** the very first run — made before this ruleset existed, so with the recommended set and no silences — reported 1 error, 16 warnings and 6 informs (score 79/100). The error and three warnings were ours and were fixed in the router: the missing `info.description`, the undeclared `system` tag used by both operations, the missing descriptions of `HealthOutputBody` and `PingOutputBody`, and the missing `servers` entry, which also made the documented `$schema` example a truthful URL. The five remaining rules cover huma's built-in error schemas, the `$schema` keyword and huma's repeated response descriptions. Current run: exit code 0, score 100/100.
 
 **Accepted cost:** silencing `oas3-missing-example` also stops enforcing examples on our own success responses. Re-enable it in the same task that gives the project its own RFC 7807 error model. The gate command is manual today; folding it into the runner of section 5.4 belongs to that pending item. Every silence is load-bearing: removing the ruleset drops the score to 96, below the floor.
+
+### Block T1 — preparation before identity
+
+Slice S1 starts from written design, not from decisions taken while coding it. This block prepares exactly what section 4 says S1 needs, and it is the only work authorized before the slices. It delivers design, harness and seed layout — never product behaviour. A task that would change observable product behaviour stops and asks for a product decision first, as section 7 requires.
+
+#### Tasks
+
+| ID | Task | Evidence that closes it |
+| --- | --- | --- |
+| T1.1 | Record the authorization boundaries of this block | `docs/prd-backend.md` states that this preparation block is authorized while the slices are not; the block is defined here with its tasks and exit criteria |
+| T1.2 | Design the auth token and the active-context transport (section 7, *Auth token and branch-context transport*) | A written design: token layout, TTL/refresh lifecycle and revocation, and how a staff request selects its active business + branch validated against active memberships — never trusted from a client-supplied identifier |
+| T1.3 | Design the identity DDL and the minimal business/branch/membership spine (section 7, *Concrete table DDL and exclusion predicates*) | A reversible Goose plan for the identity schema and the spine, with the predicates, indexes and audit-record shape that S1 and S4 consume |
+| T1.4 | Build the section 5.4 verification harness | A project subagent definition that is read-only over the repository, plus a runner that boots the API, reads the spec through `api-tools`, exercises the case matrix and returns a verdict per cell — delivered as `.pi/agents/api-contract-verifier.md`, `.pi/extensions.json` and `scripts/verify-contract.sh`, self-tested end to end |
+| T1.5 | Fix the seed layout for the five actors and the two branches | A defined seed file layout referenced from the ignored `.pi/api.json` through `auth.accounts_file`, so the credentials stay out of the repository — delivered as the committed `.pi/api.json.example` and `.pi/api.json.local.example`, the gitignored `.pi/api.json.local`, and the committed credential-free `core/dev/seed.topology.json`; proven by resolving `ADMIN` through the extension |
+| T1.6 | Close the toolchain reproducibility debt | `govulncheck` pinned in `.mise.toml` so the T0.1 audit reproduces from the repository, and the `openapi.json` question decided — pinned as `go:golang.org/x/vuln/cmd/govulncheck@1.9.0` (verified: `No vulnerabilities found` with no `@latest`), and `openapi.json` is generated only during checks, never committed |
+
+**Exit criteria for T1:** the identity slice can start without re-deciding anything — section 7 is resolved for identity, the harness of section 5.4 runs, the seed layout is fixed, and block T0's evidence reproduces from a clean clone.
+
+**Delivered so far:** T1.1 recorded the block's authorization boundary; T1.2 is [`docs/design-identity-auth.md`](design-identity-auth.md) (token layout, active-context claim, TTL/refresh lifecycle and the guard invariant that makes a revocation immediate); T1.3 is [`docs/design-identity-ddl.md`](design-identity-ddl.md) (the reversible Goose plan for `schema_identity` and the `schema_organization` spine, with the guard's single indexed read and the atomic refresh exchange, each verified against a real PostgreSQL instance); T1.4 is the section 5.4 harness (`.pi/agents/api-contract-verifier.md`, `.pi/extensions.json`, `scripts/verify-contract.sh`); T1.5 is the seed layout (section 5.4); T1.6 pinned `govulncheck` and decided against committing `openapi.json`.
+
+**What this block takes over from section 8:** the section 5.4 subagent definition (T1.4), the seed credentials layout (T1.5) and the committed-spec question (T1.6).
+
+**What this block does not touch:** the dead code left by the huma migration (`internal/adapter/http/response.go`) stays with S1, where the roadmap already assigned it, and the identity slice itself stays unauthorized until the user authorizes it.
 
 ## 4. What each slice delivers
 
@@ -189,11 +214,41 @@ Documentation and verification are the same loop here: the spec is the claim and
 cp .pi/api.json.example .pi/api.json
 ```
 
+The extension registers **nothing** unless the project opts in through a committed `.pi/extensions.json` containing `{"api-tools": true}` (`index.ts:11-26`). Verified in both directions: with that file present the six tools are available; with it removed every `api_*` tool is absent from the runtime. It is committed because it is an opt-in flag, not machine state.
+
 `.pi/api.json` is gitignored machine state, because `api_login` persists the live `access_token` into the very file it reads (`src/tools.ts:224`). The committed `.pi/api.json.example` carries the shared shape — base URL, framework and response limits — and never a credential or a token. That is also why the extension's own `api_json_tracked` warning must stay silent here: the file it reads may not be tracked, since git applies ignore rules only to untracked files.
 
-**Subagent:** a project subagent exercises the endpoints — it logs in as each actor, hits every documented case, reconciles the spec against observed behaviour, and returns a case matrix with a verdict per cell plus the list of documented cases it could not cover. It is read-only over the repository: it never edits source, and its only side effects are the HTTP requests it is asked to make.
+**Subagent:** the project subagent `api-contract-verifier` (`.pi/agents/api-contract-verifier.md`) exercises the endpoints — it logs in as each actor, hits every documented case, reconciles the spec against observed behaviour, and returns a case matrix with a verdict per cell plus the list of documented cases it could not cover. It is declared read-only: its tools are `read`, `grep`, `find`, `bash` and the read-side `api_*` tools, and it has no `edit` and no `write`. `bash` is scoped by its instructions to booting the API, building, linting and reading repository state.
+
+**Runner:** `scripts/verify-contract.sh` owns the deterministic half. It builds the API to a temporary binary, boots it, waits for `/health` and tears it down on exit. It builds instead of using `go run` on purpose: `go run` executes the server as a grandchild, so killing the wrapper leaves the real listener holding the port. When the port is already serving, it reuses that instance and never kills a process it did not start.
+
+```bash
+scripts/verify-contract.sh --check   # boot, prove readiness, tear down
+```
+
+One caveat when booting: the contract declares a fixed server URL (`router.go`, `APIServerURL`), so a run on a non-default port serves `$schema` self-links that still name `localhost:8080`. Verification runs on the default port; a different port makes those links inaccurate.
 
 **Required accounts:** one account per actor — `ADMIN`, `OWNER`, `EMPLOYEE`, `PLAYER` and `SOPORTE` — seeded through a credentials file that is gitignored. Cross-actor and cross-branch cases depend on having more than one business and more than one branch in the seed.
+
+**Seed layout (T1.5).** Three files, one committed shape and two machine-local files, because the extension **requires** the accounts file to be git-ignored: `src/accounts.ts` refuses a `tracked` file, an `unignored_untracked` one, and even one whose status cannot be verified. A seed file that is committed therefore cannot be used by the extension at all.
+
+| File | Committed | Holds |
+| --- | --- | --- |
+| `.pi/api.json.example` | yes | The shared shape, with `auth.type: login`, `login_path`, `accounts_file: .pi/api.json.local` and the default `account_alias` |
+| `.pi/api.json.local.example` | yes | The five actor entries by `role` and `email`, with placeholder passwords |
+| `.pi/api.json.local` | no, gitignored | The real development credentials for those five actors |
+| `core/dev/seed.topology.json` | yes | The dataset topology: businesses, branches, memberships, platform actors and the refusal matrix. Holds no credential; accounts are matched by email |
+
+`accounts_file` points at `.pi/api.json.local` rather than a new ignored name on purpose: that is the path `.gitignore` already covers, so the block adds no extra ignore rule. Setup per checkout:
+
+```bash
+cp .pi/api.json.example .pi/api.json
+cp .pi/api.json.local.example .pi/api.json.local   # then set real dev passwords
+```
+
+Alias resolution is case-insensitive over `role`, `username` or `email`, so a verifier asks for the actor by name (`api_login` with alias `ADMIN`). Every password parsed from the file is registered for redaction and never appears in tool parameters, results or logs.
+
+The layout was proven end to end before it was documented: with `accounts_file` set to `.pi/api.json.local`, `api_login` resolved the `ADMIN` account and issued the request to `login_path`, failing only because the login endpoint does not exist yet. A rejection at the accounts-file layer would have surfaced a different `configuration` error, so reaching the HTTP layer is the proof that the ignore gate passed and the alias resolved. `core/dev/seed.topology.json` defines two businesses (`B1`, `B2`) and three branches, because section 5.4 asks for more than one business: a cross-branch refusal inside `B1` must be distinguishable from a cross-business refusal.
 
 **Prerequisites for this verification:** block T0 is closed (spec generated and readable by the extension), a runnable local instance exists, and the seed data covers all five actors plus two branches. Until then, features may be implemented but no slice can close.
 
@@ -241,7 +296,8 @@ These are not resolved by code and each one blocks real operation, not developme
 ## 8. Open items
 
 - **T0.4 (live error response):** the documented 500 is never exercised at runtime because `/health` and `/api/v1/ping` have no failure path. It is observed in S1 against a handler that can actually fail, with the same RFC 7807 media type the contract already declares.
-- **Subagent definition:** the runner for section 5.4 must be created in the project; the definition location, model and effort settings are still to be confirmed, and its tool allowlist must exclude repository writes.
-- **Seed credentials:** the file layout for the five actor accounts and the two-branch dataset.
-- **Committed spec:** whether `openapi.json` is committed as a reviewed artifact in each slice or generated only during checks.
+- **Unregistered-route 404 shape (found by the T1.4 self-test):** a request to a path with no registered operation returns Chi's fallback `404` as `text/plain; charset=utf-8` with the body `404 page not found`, which is not RFC 7807 and carries no `type`. The contract declares `application/problem+json` only for `500`. Section 5.2 requires the not-found case to be problem-shaped, so the router needs one fallback that renders a problem detail. Tracked to S1, alongside T0.4, because both are the same missing piece: the project has no RFC 7807 error model of its own yet. The contract already states that `oas3-missing-example` is re-enabled in the same task that gives the project its own problem-details model.
+- **Subagent definition:** closed in block T1 (T1.4). The definition is `.pi/agents/api-contract-verifier.md`, read-only by declared tools (`read`, `grep`, `find`, `bash`, `api_status`, `api_auth_status`, `api_login`, `api_swagger`, `api_rest_request`), with the deterministic boot half in `scripts/verify-contract.sh`. The model and effort settings still follow the active subagent profile rather than being pinned per agent.
+- **Seed credentials:** closed in block T1 (T1.5). The layout is the committed `.pi/api.json.example` plus `.pi/api.json.local.example`, the gitignored `.pi/api.json.local` holding the five actor credentials, and the credential-free `core/dev/seed.topology.json` defining the dataset and refusal matrix. See section 5.4.
+- **Committed spec:** closed in block T1 (T1.6). `openapi.json` is **not** committed; it is generated and linted during checks. It is deterministic (the same `sha256` from three consecutive reads) but host-dependent, since it declares `servers: http://localhost:8080` and three localhost `$schema` URLs, so committing it would bake a development URL into the repository. The skill already forbids hand-authoring it, and the runner of section 5.4 now generates and lints the live document on every run, which is the stronger guarantee. If a future slice wants a reviewable diff of the contract, the honest artifact is a spec regenerated from a fixed commit, not a copy carrying `localhost`.
 - **Remaining technical design from `docs/prd-backend.md` §7:** JWT claim layout, TTL/refresh and branch-context transport; concrete DDL and exclusion predicates; batch ceilings and pagination shapes; Evolution REST/webhook contract and durable retries; HMAC secret rotation and stored suffix length; public photo storage.

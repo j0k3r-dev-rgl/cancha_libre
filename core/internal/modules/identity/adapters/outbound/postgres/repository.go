@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -390,27 +389,58 @@ func (r *Repository) CreateInvitation(ctx context.Context, inv domain.Invitation
 			return domain.Invitation{}, err
 		}
 	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Invitation{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Retirement is a lifecycle timestamp, never a delete: the row must survive so
+	// its token keeps answering the documented invitation-expired refusal.
+	// invitation_one_unconsumed_key cannot test now() in its predicate, so an
+	// already expired, unconsumed and unretired invitation for the same target is
+	// retired here, inside the transaction that inserts the new one.
+	if _, err := tx.Exec(ctx, `
+		UPDATE schema_identity.invitation
+		   SET retired_at = now()
+		 WHERE lower(email) = lower($1)
+		   AND intended_role = $2
+		   AND consumed_at IS NULL
+		   AND retired_at IS NULL
+		   AND expires_at <= now()
+		   AND business_id IS NOT DISTINCT FROM $3::uuid
+		   AND branch_id IS NOT DISTINCT FROM $4::uuid
+	`, normEmail, string(inv.IntendedRole), inv.BusinessID, inv.BranchID); err != nil {
+		return domain.Invitation{}, err
+	}
+
 	var out domain.Invitation
 	var roleStr string
-	err = r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO schema_identity.invitation
 			(id, token_hash, email, intended_role, business_id, branch_id, issued_by, expires_at)
 		VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6::uuid, $7::uuid, $8)
 		RETURNING id::text, token_hash, email, intended_role,
 		          business_id::text, branch_id::text, issued_by::text,
-		          created_at, expires_at, consumed_at, consumed_by::text
+		          created_at, expires_at, consumed_at, consumed_by::text, retired_at
 	`, id, inv.TokenHash, normEmail, string(inv.IntendedRole), inv.BusinessID, inv.BranchID, inv.IssuedBy, inv.ExpiresAt.UTC()).Scan(
 		&out.ID, &out.TokenHash, &out.Email, &roleStr,
 		&out.BusinessID, &out.BranchID, &out.IssuedBy,
-		&out.CreatedAt, &out.ExpiresAt, &out.ConsumedAt, &out.ConsumedBy,
+		&out.CreatedAt, &out.ExpiresAt, &out.ConsumedAt, &out.ConsumedBy, &out.RetiredAt,
 	)
 	if err != nil {
+		if isDuplicateInvitationViolation(err) {
+			return domain.Invitation{}, domain.ErrConflict
+		}
 		if isUniqueViolation(err) || isCheckViolation(err) {
 			return domain.Invitation{}, domain.ErrValidation
 		}
 		return domain.Invitation{}, err
 	}
 	out.IntendedRole = actor.Role(roleStr)
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Invitation{}, err
+	}
 	return out, nil
 }
 
@@ -420,13 +450,13 @@ func (r *Repository) FindInvitationByHash(ctx context.Context, tokenHash []byte)
 	err := r.pool.QueryRow(ctx, `
 		SELECT id::text, token_hash, email, intended_role,
 		       business_id::text, branch_id::text, issued_by::text,
-		       created_at, expires_at, consumed_at, consumed_by::text
+		       created_at, expires_at, consumed_at, consumed_by::text, retired_at
 		FROM schema_identity.invitation
 		WHERE token_hash = $1
 	`, tokenHash).Scan(
 		&out.ID, &out.TokenHash, &out.Email, &roleStr,
 		&out.BusinessID, &out.BranchID, &out.IssuedBy,
-		&out.CreatedAt, &out.ExpiresAt, &out.ConsumedAt, &out.ConsumedBy,
+		&out.CreatedAt, &out.ExpiresAt, &out.ConsumedAt, &out.ConsumedBy, &out.RetiredAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -448,13 +478,13 @@ func (r *Repository) FindInvitationByID(ctx context.Context, invitationID string
 	err := r.pool.QueryRow(ctx, `
 		SELECT id::text, token_hash, email, intended_role,
 		       business_id::text, branch_id::text, issued_by::text,
-		       created_at, expires_at, consumed_at, consumed_by::text
+		       created_at, expires_at, consumed_at, consumed_by::text, retired_at
 		FROM schema_identity.invitation
 		WHERE id = $1::uuid
 	`, id).Scan(
 		&out.ID, &out.TokenHash, &out.Email, &roleStr,
 		&out.BusinessID, &out.BranchID, &out.IssuedBy,
-		&out.CreatedAt, &out.ExpiresAt, &out.ConsumedAt, &out.ConsumedBy,
+		&out.CreatedAt, &out.ExpiresAt, &out.ConsumedAt, &out.ConsumedBy, &out.RetiredAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -482,10 +512,14 @@ func (r *Repository) DeleteUnconsumedInvitation(ctx context.Context, invitationI
 	if err != nil || !exists {
 		return domain.ErrNotFound
 	}
-	// Idempotent revocation: mark expired if not yet consumed so token cannot be used
+	// Idempotent revocation: retire the invitation so its token can no longer be
+	// used. The lifecycle fact of this table is the retired_at timestamp (see
+	// invitation_one_unconsumed_key): the row survives, expires_at is not
+	// backdated, and a retired invitation answers the same invitation-expired
+	// refusal as an expired one.
 	_, err = r.pool.Exec(ctx, `
 		UPDATE schema_identity.invitation
-		   SET expires_at = LEAST(expires_at, now() - interval '1 second')
+		   SET retired_at = COALESCE(retired_at, now())
 		 WHERE id = $1::uuid AND business_id = $2::uuid AND consumed_at IS NULL
 	`, invID, busID)
 	return err
@@ -503,6 +537,7 @@ func (r *Repository) HasUnexpiredInvitation(ctx context.Context, email string, i
 			WHERE lower(email) = lower($1)
 			  AND intended_role = $2
 			  AND consumed_at IS NULL
+			  AND retired_at IS NULL
 			  AND expires_at > now()
 			  AND ($3::uuid IS NULL AND business_id IS NULL OR business_id = $3::uuid)
 			  AND ($4::uuid IS NULL AND branch_id IS NULL OR branch_id = $4::uuid)
@@ -518,11 +553,11 @@ func (r *Repository) SupersedeInvitations(ctx context.Context, email string, int
 	}
 	_, err = r.pool.Exec(ctx, `
 		UPDATE schema_identity.invitation
-		   SET expires_at = now() - interval '1 second'
+		   SET retired_at = now()
 		 WHERE lower(email) = lower($1)
 		   AND intended_role = $2
 		   AND consumed_at IS NULL
-		   AND expires_at > now()
+		   AND retired_at IS NULL
 	`, normEmail, string(intendedRole))
 	return err
 }
@@ -540,14 +575,14 @@ func (r *Repository) ActivateInvitation(ctx context.Context, invitationID, email
 	err = tx.QueryRow(ctx, `
 		SELECT id::text, token_hash, email, intended_role,
 		       business_id::text, branch_id::text, issued_by::text,
-		       created_at, expires_at, consumed_at, consumed_by::text
+		       created_at, expires_at, consumed_at, consumed_by::text, retired_at
 		FROM schema_identity.invitation
 		WHERE id = $1::uuid
 		FOR UPDATE
 	`, invitationID).Scan(
 		&inv.ID, &inv.TokenHash, &inv.Email, &roleStr,
 		&inv.BusinessID, &inv.BranchID, &inv.IssuedBy,
-		&inv.CreatedAt, &inv.ExpiresAt, &inv.ConsumedAt, &inv.ConsumedBy,
+		&inv.CreatedAt, &inv.ExpiresAt, &inv.ConsumedAt, &inv.ConsumedBy, &inv.RetiredAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -559,6 +594,9 @@ func (r *Repository) ActivateInvitation(ctx context.Context, invitationID, email
 
 	if inv.ConsumedAt != nil {
 		return domain.Account{}, domain.Invitation{}, domain.ErrInvitationConsumed
+	}
+	if inv.RetiredAt != nil {
+		return domain.Account{}, domain.Invitation{}, domain.ErrInvitationExpired
 	}
 	if !inv.ExpiresAt.After(now) {
 		return domain.Account{}, domain.Invitation{}, domain.ErrInvitationExpired
@@ -647,7 +685,7 @@ func (r *Repository) ActivateInvitation(ctx context.Context, invitationID, email
 	if _, err := tx.Exec(ctx, `
 		UPDATE schema_identity.invitation
 		   SET consumed_at = $2, consumed_by = $3::uuid
-		 WHERE id = $1::uuid
+		 WHERE id = $1::uuid AND retired_at IS NULL
 	`, inv.ID, now.UTC(), acc.ID); err != nil {
 		return domain.Account{}, domain.Invitation{}, err
 	}
@@ -752,12 +790,15 @@ func (r *Repository) RevokeSupportOperator(ctx context.Context, accountID string
 		return domain.ErrNotFound
 	}
 
+	// The conditional predicate makes the operation truly idempotent (F5): an
+	// already closed operator keeps a byte-identical row, so the repeat does not
+	// rewrite updated_at, while the first call still closes an ACTIVE operator.
 	if _, err := tx.Exec(ctx, `
 		UPDATE schema_identity.account
 		   SET status = 'CLOSED',
 		       closed_at = COALESCE(closed_at, now()),
 		       updated_at = now()
-		 WHERE id = $1::uuid
+		 WHERE id = $1::uuid AND status <> 'CLOSED'
 	`, id); err != nil {
 		return err
 	}
@@ -801,27 +842,17 @@ func (r *Repository) AppendAudit(ctx context.Context, entry domain.AuditEntry) e
 	return err
 }
 
-// RecordHTTPRejAudit implements the platform HTTP RefusalAuditor port. It writes
-// one append-only REFUSED identity_audit row for a refusal observed by the
-// refusal-audit middleware, keeping the request method and path in the audit
-// detail. It never returns an error to the caller, because a refusal must never
-// be turned into a 500; a failed audit write is logged instead.
-func (r *Repository) RecordHTTPRejAudit(ctx context.Context, method, path string, status int, problemType, detail string, actorAccountID *string) {
-	err := r.AppendAudit(ctx, domain.AuditEntry{
-		Event:          "http_refusal",
-		Outcome:        domain.AuditOutcomeRefused,
-		ActorAccountID: actorAccountID,
-		Reason:         detail,
-		Detail: map[string]any{
-			"method":       method,
-			"path":         path,
-			"status":       status,
-			"problem_type": problemType,
-		},
-	})
-	if err != nil {
-		slog.Default().ErrorContext(ctx, "failed to record HTTP refusal audit row", "error", err)
-	}
+// invitationTargetIndexName is the partial unique index that makes "at most one
+// unconsumed invitation per (email, intended_role, business_id, branch_id)" a
+// database fact instead of a read-then-write check (finding F2).
+const invitationTargetIndexName = "invitation_one_unconsumed_key"
+
+// isDuplicateInvitationViolation reports a conflict with the one-unconsumed-
+// invitation-per-target index, which the inbound adapter maps to the documented
+// 409 urn:canchalibre:error:conflict.
+func isDuplicateInvitationViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == invitationTargetIndexName
 }
 
 func isUniqueViolation(err error) bool {

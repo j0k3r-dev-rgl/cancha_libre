@@ -60,6 +60,7 @@ type Invitation struct {
 	ExpiresAt    time.Time
 	ConsumedAt   *time.Time
 	ConsumedBy   *string
+	RetiredAt    *time.Time
 }
 
 // RefreshSession represents a row in schema_identity.refresh_session.

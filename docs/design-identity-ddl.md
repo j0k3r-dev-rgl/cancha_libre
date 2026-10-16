@@ -101,6 +101,7 @@ CREATE TABLE schema_identity.invitation (
     expires_at    timestamptz NOT NULL,
     consumed_at   timestamptz NULL,
     consumed_by   uuid        NULL REFERENCES schema_identity.account (id),
+    retired_at    timestamptz NULL,
     CONSTRAINT invitation_scope_shape CHECK (
         (intended_role IN ('ADMIN', 'SOPORTE') AND business_id IS NULL AND branch_id IS NULL)
         OR (intended_role = 'OWNER' AND business_id IS NOT NULL AND branch_id IS NULL)
@@ -113,6 +114,15 @@ CREATE TABLE schema_identity.invitation (
 );
 
 CREATE INDEX invitation_email_idx ON schema_identity.invitation (lower(email));
+
+-- At most one unconsumed, unretired invitation per target. NULLS NOT DISTINCT
+-- makes the business-less platform invitations (ADMIN, SOPORTE) participate.
+-- Retirement is a lifecycle timestamp, not a delete, and it keeps the predicate
+-- immutable: an index predicate cannot call now().
+CREATE UNIQUE INDEX invitation_one_unconsumed_key
+    ON schema_identity.invitation (lower(email), intended_role, business_id, branch_id)
+    NULLS NOT DISTINCT
+    WHERE consumed_at IS NULL AND retired_at IS NULL;
 
 -- One row per login session. The row is replaced on every rotation; reuse of a
 -- replaced token revokes the whole family. No cross-schema reference.
@@ -160,6 +170,12 @@ CREATE TABLE schema_identity.identity_audit (
 CREATE INDEX identity_audit_subject_idx
     ON schema_identity.identity_audit (subject_account_id, occurred_at DESC);
 ```
+
+### The one-unconsumed-invitation rule
+
+`invitation_one_unconsumed_key` makes "at most one unconsumed, unretired invitation per `(lower(email), intended_role, business_id, branch_id)`" a database fact. `NULLS NOT DISTINCT` is what lets the business-less platform invitations (`ADMIN`, `SOPORTE`) participate: under the default, two rows with `business_id IS NULL` and `branch_id IS NULL` are distinct and the race would stay open. Without the index, the documented `409` for a duplicate unexpired invitation was a read-then-write check that two concurrent `POST /businesses/{businessId}/invitations` requests could both pass, each answering `201`.
+
+A partial index predicate must be immutable, so it cannot call `now()`; expiry therefore cannot be part of the predicate. Retirement is materialized instead as `retired_at`, the same shape of answer `membership.revoked_at` already gives: a timestamp, not a delete, so the row is retained and the predicate stays immutable. `CreateInvitation` retires the already expired, unconsumed and unretired rows of the same target in the same transaction that inserts the new one, and `SupersedeInvitations` retires every unconsumed, unretired row for its email and role. A retired invitation leaves the index without losing its row, and it can never be consumed: the activation path rejects it and still answers `urn:canchalibre:error:invitation-expired`, so an expired link keeps the refusal it had before and never degrades into an unknown-token validation error. The loser of a concurrent race receives `domain.ErrConflict`, which the inbound adapter maps to `urn:canchalibre:error:conflict`; no driver error reaches the wire.
 
 `platform_role` and `membership.role` are separate on purpose. `ADMIN` is a platform actor with no branch; an `OWNER` is a business actor with a membership. Collapsing them would make "`ADMIN` is refused on reservations, customers and payments" impossible to express, because an administrator would also be a member of the business they administer.
 

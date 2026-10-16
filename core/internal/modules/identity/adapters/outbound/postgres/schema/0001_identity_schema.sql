@@ -47,6 +47,7 @@ CREATE TABLE schema_identity.invitation (
     expires_at    timestamptz NOT NULL,
     consumed_at   timestamptz NULL,
     consumed_by   uuid        NULL REFERENCES schema_identity.account (id),
+    retired_at    timestamptz NULL,
     CONSTRAINT invitation_scope_shape CHECK (
         (intended_role IN ('ADMIN', 'SOPORTE') AND business_id IS NULL AND branch_id IS NULL)
         OR (intended_role = 'OWNER' AND business_id IS NOT NULL AND branch_id IS NULL)
@@ -59,6 +60,17 @@ CREATE TABLE schema_identity.invitation (
 );
 
 CREATE INDEX invitation_email_idx ON schema_identity.invitation (lower(email));
+
+-- At most one unconsumed, unretired invitation per (email, intended_role,
+-- business_id, branch_id). NULLS NOT DISTINCT makes the business-less platform
+-- invitations (ADMIN, SOPORTE) participate, which is what closes the concurrent
+-- duplicate race. Retirement is a lifecycle timestamp, never a delete: an index
+-- predicate cannot call now(), so expired and superseded rows are retired in the
+-- write paths and leave the predicate without losing their row.
+CREATE UNIQUE INDEX invitation_one_unconsumed_key
+    ON schema_identity.invitation (lower(email), intended_role, business_id, branch_id)
+    NULLS NOT DISTINCT
+    WHERE consumed_at IS NULL AND retired_at IS NULL;
 
 -- One row per login session. The row is replaced on every rotation; reuse of a
 -- replaced token revokes the whole family. No cross-schema reference.

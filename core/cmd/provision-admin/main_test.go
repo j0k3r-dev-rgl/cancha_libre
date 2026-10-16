@@ -114,6 +114,7 @@ type invitationRow struct {
 	IssuedBy     *string
 	ConsumedAt   *time.Time
 	ExpiresAt    time.Time
+	RetiredAt    *time.Time
 	TokenHash    []byte
 }
 
@@ -121,7 +122,7 @@ func adminInvitations(t *testing.T, pool *pgxpool.Pool, email string) []invitati
 	t.Helper()
 	rows, err := pool.Query(context.Background(), `
 		SELECT id::text, intended_role, business_id::text, branch_id::text, issued_by::text,
-		       consumed_at, expires_at, token_hash
+		       consumed_at, expires_at, retired_at, token_hash
 		FROM schema_identity.invitation
 		WHERE lower(email) = lower($1)
 		ORDER BY created_at ASC
@@ -135,7 +136,7 @@ func adminInvitations(t *testing.T, pool *pgxpool.Pool, email string) []invitati
 	for rows.Next() {
 		var r invitationRow
 		if err := rows.Scan(&r.ID, &r.IntendedRole, &r.BusinessID, &r.BranchID, &r.IssuedBy,
-			&r.ConsumedAt, &r.ExpiresAt, &r.TokenHash); err != nil {
+			&r.ConsumedAt, &r.ExpiresAt, &r.RetiredAt, &r.TokenHash); err != nil {
 			t.Fatalf("scan invitation: %v", err)
 		}
 		out = append(out, r)
@@ -411,9 +412,9 @@ func TestSecondRunWithoutSupersedeRefusesWithoutDomainMutation(t *testing.T) {
 }
 
 // TestSecondRunWithSupersedeReplacesUnexpiredInvitation proves S7: --supersede
-// exits 0 and replaces the previous unexpired ADMIN invitation by expiring it
-// (expires_at moved into the past, consumed_at still NULL, the row retained)
-// while reusing the existing PENDING account.
+// exits 0 and retires the previous unexpired ADMIN invitation (retired_at set,
+// consumed_at still NULL, the row retained, its expires_at untouched) while
+// leaving exactly one live invitation and reusing the existing PENDING account.
 func TestSecondRunWithSupersedeReplacesUnexpiredInvitation(t *testing.T) {
 	pool := setupTestDatabase(t)
 	setRequiredEnv(t)
@@ -440,14 +441,26 @@ func TestSecondRunWithSupersedeReplacesUnexpiredInvitation(t *testing.T) {
 		t.Fatalf("invitation count = %d, want 2 (the superseded row is retained)", len(rows))
 	}
 	old, current := rows[0], rows[1]
-	if !old.ExpiresAt.Before(time.Now()) {
-		t.Fatalf("superseded invitation expires_at = %v, want it moved into the past", old.ExpiresAt)
+	if old.RetiredAt == nil {
+		t.Fatalf("superseded invitation retired_at = nil, want a retirement timestamp")
 	}
 	if old.ConsumedAt != nil {
-		t.Fatalf("superseded invitation consumed_at = %v, want NULL (superseded, not consumed)", old.ConsumedAt)
+		t.Fatalf("superseded invitation consumed_at = %v, want NULL (retired, not consumed)", old.ConsumedAt)
 	}
 	if !current.ExpiresAt.After(time.Now()) {
 		t.Fatalf("new invitation expires_at = %v, want a future expiry", current.ExpiresAt)
+	}
+	if current.RetiredAt != nil {
+		t.Fatalf("the new invitation is retired (retired_at = %v), want NULL", current.RetiredAt)
+	}
+	liveInvitations := 0
+	for _, r := range rows {
+		if r.ConsumedAt == nil && r.RetiredAt == nil && r.ExpiresAt.After(time.Now()) {
+			liveInvitations++
+		}
+	}
+	if liveInvitations != 1 {
+		t.Fatalf("live invitations = %d, want exactly 1 after --supersede", liveInvitations)
 	}
 	if bytes.Equal(old.TokenHash, current.TokenHash) {
 		t.Fatalf("the new invitation reused the superseded token hash")

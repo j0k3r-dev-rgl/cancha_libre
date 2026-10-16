@@ -319,6 +319,10 @@ func (s *Service) ActivateInvitation(ctx context.Context, rawToken, rawPassword 
 		s.auditRefused(ctx, "activate_invitation", nil, inv.ConsumedBy, "invitation already consumed")
 		return domain.Account{}, domain.ErrInvitationConsumed
 	}
+	if inv.RetiredAt != nil {
+		s.auditRefused(ctx, "activate_invitation", nil, nil, "invitation retired")
+		return domain.Account{}, domain.ErrInvitationExpired
+	}
 	if !inv.ExpiresAt.After(now) {
 		s.auditRefused(ctx, "activate_invitation", nil, nil, "invitation expired")
 		return domain.Account{}, domain.ErrInvitationExpired

@@ -1,0 +1,11 @@
+# Toolchain pinned by the repository, not by the developer machine.
+# The Go patch level is part of the contract: go1.27.1 carries six standard
+# library vulnerabilities that reach the HTTP server (see
+# docs/roadmap-backend.md, block T0.1), all fixed in go1.27.2.
+[tools]
+go = "1.27.2"
+# OpenAPI 3.1 linter (T0.3), taken as the cosign-verified release binary through
+# mise's aqua backend. Declared this way it never enters core/go.mod, so the
+# shipped dependency closure (huma + chi only) is unaffected. 0.33.1 exists but
+# is held back by mise's minimum_release_age supply-chain guard.
+"aqua:daveshanley/vacuum" = "0.33.0"

@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "url": "http://localhost:8080",
+  "timeout_ms": 30000,
+  "limits": {
+    "max_response_bytes": 50000,
+    "max_response_lines": 2000,
+    "cursor_ttl_seconds": 3600
+  },
+  "auth": {
+    "type": "none"
+  },
+  "swagger": {
+    "enabled": true,
+    "framework": "openapi"
+  }
+}

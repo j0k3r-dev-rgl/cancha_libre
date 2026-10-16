@@ -4,7 +4,7 @@ description: "Trigger: api, contract, openapi, swagger, swaggo, type sync, dtos,
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.0"
+  version: "1.1"
 ---
 
 ## Activation Contract
@@ -15,12 +15,18 @@ Use this skill when exposing or modifying Go HTTP handlers, documenting API cont
 
 - **OpenAPI 3.1 Target & Generator Validation Prerequisite**:
   - The authoritative API specification target is OpenAPI 3.1.
+  - **Toolchain (validated in T0)**: the generator is `github.com/danielgtaylor/huma/v2` pinned to `v2.39.1` with the `humachi` adapter over `github.com/go-chi/chi/v5`. It emits OpenAPI 3.1 from Go types and serves it at `/openapi.json`, with the schema documents at `/schemas` and the UI at `/docs`. `oapi-codegen` remains the only viable spec-first alternative; `swaggo/swag` stays rejected because it emits Swagger 2.0 only.
   - **Toolchain Prerequisite**: `swaggo/swag` natively targets Swagger 2.0. Do not silently relax the specification target to 2.0, do not silently switch to an unapproved third-party generator, and do not assert that current `swag` produces OpenAPI 3.1 without verified version and output evidence.
   - Mark unvalidated generator tooling as blocking automated contract generation until toolchain compatibility is established. Existing `swag init` commands are retained only as a conditional legacy workflow after verifying tool version and output schema.
 - **Explicit DTOs and RFC 7807 Problem Details**:
   - Request bodies and responses in bounded context HTTP adapters (`internal/modules/{context}/adapters/inbound/http`) must use explicit Go structs with `json` tags.
   - Prohibited: `map[string]interface{}`, `any`, or unexported anonymous structs in API boundaries.
   - All error responses must adhere strictly to the RFC 7807 Problem Details schema (`type`, `title`, `status`, `detail`, `instance`).
+- **Response `$schema` Link Convention (huma toolchain)**:
+  - huma's default `SchemaLinkTransformer` (registered by `huma.DefaultConfig` as a create hook) is **enabled by decision**, not a defect. Do not disable it and do not hand-declare `$schema` in DTOs.
+  - Every struct response body therefore carries a `$schema` string field pointing at `/schemas/{Type}.json`, plus a `Link: </schemas/{Type}.json>; rel="describedBy"` header.
+  - Never report the extra field as contract drift: the same transformer declares it in `components.schemas.{Type}.properties.$schema` as `readOnly: true`, so the served response validates against the published contract.
+  - Failure to touch every observable effect is a defect: a response DTO is not documented until a contract test asserts the `$schema` field is present, points at the right schema document, and is declared read-only in the contract.
 - **Automated Type Generation & Repository Path Reality**:
   - Frontend TypeScript types must be generated automatically from the validated OpenAPI specification. Manual authoring or editing of API request/response types in TypeScript is strictly forbidden.
   - Repository layout uses `core/` (Go backend) and `front/` (Next.js frontend). Never invent or reference non-existent paths like `apps/api` or `apps/web`.
@@ -38,6 +44,7 @@ Use this skill when exposing or modifying Go HTTP handlers, documenting API cont
 | Documenting API target | Maintain OpenAPI 3.1 target; validate toolchain output | Silently downgrading to Swagger 2.0 or claiming `swag` outputs 3.1 without proof |
 | Generator unvalidated | Treat automated generation as blocked on toolchain selection | Silently switching to arbitrary unvetted tools or faking 3.1 compliance |
 | Specifying payload schemas | Explicit Go DTO structs with `json` field tags | Using `map[string]any`, untyped JSON, or inline anonymous structs |
+| Documenting a huma response DTO | Keep the default schema link transformer; assert `$schema` and `Link` in the contract test | Disabling the transformer, hand-declaring `$schema`, or reporting it as contract drift |
 | Error response contract | RFC 7807 Problem Details DTO | Returning ad-hoc JSON errors, raw strings, or leaking database internals |
 | Frontend API types | Generate types from validated spec into `front/` | Writing handwritten TypeScript interfaces for backend responses |
 | Executing type generation | Inspect `front/package.json` for real scripts | Inventing non-existent scripts or assuming `apps/web` monorepo paths |
@@ -46,7 +53,7 @@ Use this skill when exposing or modifying Go HTTP handlers, documenting API cont
 ## Execution Steps
 
 1. In the Go bounded context (`internal/modules/{context}/adapters/inbound/http`), declare explicit request and response DTO structs with `json` tags and RFC 7807 error structures.
-2. Annotate HTTP handlers with declarative documentation comments specifying tags, parameters, status codes, and DTO schemas.
+2. Register the operation with `huma.Register`, declaring the operation id, method, path, summary, tags and the error status codes it may return. The OpenAPI 3.1 document is generated from those declarations; never hand-author it. A new response DTO is not documented until its contract test asserts the `$schema` field and the contract declaration described above.
 3. Validate OpenAPI generator compatibility: if using `swag` as a conditional legacy workflow, verify generator version and output specification before proceeding. If OpenAPI 3.1 validation fails, flag the toolchain prerequisite as blocking automated generation.
 4. Discover type-generation scripts in `front/package.json` (do not assume pre-configured scripts or `apps/web` paths). Run the validated generation workflow targeting `front/`.
 5. Ensure Server Actions and frontend features consume the generated types without manual type shadowing.

@@ -1,6 +1,21 @@
 # Local Pi runtime state
 .atl/
 
+# Local tool state, per machine and never shared.
+# CodeGraph keeps its whole directory local (it also ships its own inner
+# .gitignore, which the root entry supersedes). Engram keeps only its shared
+# project name in git; everything else in .engram/ is machine state.
+.codegraph/
+.engram/*
+!.engram/config.json
+
+# Pi API test tooling.
+# The shared config is committed: it carries only the base URL, the framework and
+# the response limits, with no credentials. Machine-specific overrides (real
+# credentials, keys) belong in the .local variant, which is never committed.
+.pi/api.json.local
+.pi/extensions/*/node_modules/
+
 # Research and investigation outputs
 investigaciones/
 

@@ -67,12 +67,35 @@ func TestResetAndSeedRecreatesDatabaseAndLoadsTopology(t *testing.T) {
 		pool1.Close()
 		t.Fatalf("count memberships: %v", err)
 	}
-	pool1.Close()
 
 	if accountCount != 5 || businessCount != 2 || branchCount != 3 || membershipCount != 2 {
+		pool1.Close()
 		t.Fatalf("unexpected seeded counts: accounts=%d businesses=%d branches=%d memberships=%d",
 			accountCount, businessCount, branchCount, membershipCount)
 	}
+
+	// S2 schema tables check: verify new tables are created by the reset
+	for _, table := range []string{
+		"schema_organization.branch_approval_history",
+		"schema_organization.branch_operating_hours",
+		"schema_organization.branch_photo",
+		"schema_organization.court",
+	} {
+		var exists bool
+		if err := pool1.QueryRow(ctx, "SELECT to_regclass($1) IS NOT NULL", table).Scan(&exists); err != nil || !exists {
+			pool1.Close()
+			t.Fatalf("expected table %s to exist, err=%v exists=%v", table, err, exists)
+		}
+	}
+
+	// Verify branch approval_status and coordinates_confirmed seeded values
+	var approvedCount int
+	if err := pool1.QueryRow(ctx, "SELECT count(*) FROM schema_organization.branch WHERE approval_status = 'APPROVED' AND coordinates_confirmed = true").Scan(&approvedCount); err != nil || approvedCount != 3 {
+		pool1.Close()
+		t.Fatalf("expected 3 approved branches, got %d, err=%v", approvedCount, err)
+	}
+
+	pool1.Close()
 
 	// Second reset must produce a different database OID (proving DROP + CREATE)
 	pool2, err := postgres.ResetAndConnect(ctx, postgres.ResetOptions{

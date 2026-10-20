@@ -305,9 +305,17 @@ func loadSeed(ctx context.Context, pool *pgxpool.Pool, topologyPath, accountsPat
 				}
 			}
 			branchIDs[br.Key] = brID
+			slug := strings.ToLower(strings.ReplaceAll(br.Name, " ", "-"))
+			street := "Av. Libertador 1000"
+			city := "Buenos Aires"
+			state := "CABA"
+			postal := "C1425"
 			if _, err := tx.Exec(ctx,
-				`INSERT INTO schema_organization.branch (id, business_id, name, enabled) VALUES ($1, $2, $3, $4)`,
-				brID, bID, br.Name, br.Enabled,
+				`INSERT INTO schema_organization.branch (
+					id, business_id, name, slug, street_address, city, state_province, postal_code,
+					approval_status, coordinates_confirmed, enabled
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'APPROVED', true, $9)`,
+				brID, bID, br.Name, slug, street, city, state, postal, br.Enabled,
 			); err != nil {
 				return fmt.Errorf("insert branch %s: %w", br.Key, err)
 			}

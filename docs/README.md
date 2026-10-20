@@ -30,6 +30,8 @@ Each document here has one job. This page says which one, in what order to read 
 | [`design/platform-module-layout.md`](design/platform-module-layout.md) | Bounded-context layout, what replaces the flat bootstrap, and the no-cross-context-import rule. |
 | [`design/provision-admin.md`](design/provision-admin.md) | The private first-`ADMIN` command: input, refusals, exit codes, no password, audit row. |
 | [`design/metrics-endpoint.md`](design/metrics-endpoint.md) | The private Prometheus endpoint: surface, instruments, `METRICS_TOKEN` gate and operator boundaries. |
+| [`design/organization-ddl.md`](design/organization-ddl.md) | Complete SQL DDL for `schema_organization` (S2): businesses, branches, approval history, operating hours, courts, and photos without denormalized state. |
+| [`design/organization-endpoints.md`](design/organization-endpoints.md) | Endpoint inventory and contracts for Slice S2 (Platform Administration & Core Organization): business lifecycle, branch requests review, and global governance. |
 
 ## Rename map — restructure of 2026-10-16
 

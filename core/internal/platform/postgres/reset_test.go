@@ -2,11 +2,16 @@ package postgres_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	orgpostgres "canchalibre/core/internal/modules/organization/adapters/outbound/postgres"
+	"canchalibre/core/internal/modules/organization/core/ports"
 	"canchalibre/core/internal/platform/postgres"
 )
 
@@ -44,6 +49,9 @@ func TestResetAndSeedRecreatesDatabaseAndLoadsTopology(t *testing.T) {
 		t.Fatalf("first ResetAndConnect failed: %v", err)
 	}
 
+	defer pool1.Close()
+	assertApprovalFixtures(t, ctx, pool1)
+
 	var oid1 uint32
 	if err := pool1.QueryRow(ctx, "SELECT oid FROM pg_database WHERE datname = current_database()").Scan(&oid1); err != nil {
 		pool1.Close()
@@ -68,7 +76,7 @@ func TestResetAndSeedRecreatesDatabaseAndLoadsTopology(t *testing.T) {
 		t.Fatalf("count memberships: %v", err)
 	}
 
-	if accountCount != 5 || businessCount != 2 || branchCount != 3 || membershipCount != 2 {
+	if accountCount != 5 || businessCount != 2 || branchCount != 8 || membershipCount != 2 {
 		pool1.Close()
 		t.Fatalf("unexpected seeded counts: accounts=%d businesses=%d branches=%d memberships=%d",
 			accountCount, businessCount, branchCount, membershipCount)
@@ -107,6 +115,7 @@ func TestResetAndSeedRecreatesDatabaseAndLoadsTopology(t *testing.T) {
 		t.Fatalf("second ResetAndConnect failed: %v", err)
 	}
 	defer pool2.Close()
+	assertApprovalFixtures(t, ctx, pool2)
 
 	var oid2 uint32
 	if err := pool2.QueryRow(ctx, "SELECT oid FROM pg_database WHERE datname = current_database()").Scan(&oid2); err != nil {
@@ -114,5 +123,51 @@ func TestResetAndSeedRecreatesDatabaseAndLoadsTopology(t *testing.T) {
 	}
 	if oid1 == oid2 {
 		t.Fatalf("expected database OID to change after DROP + CREATE, both were %d", oid1)
+	}
+}
+
+func assertApprovalFixtures(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+	t.Helper()
+	repo := orgpostgres.NewRepository(pool)
+	items, total, err := repo.ListBranchRequests(ctx, ports.BranchRequestFilter{Status: "PENDING", Limit: 100})
+	if err != nil || total != 5 || len(items) != 5 {
+		t.Fatalf("expected five pending approval fixtures: total=%d items=%d err=%v", total, len(items), err)
+	}
+	for i := 1; i <= 5; i++ {
+		requestID := fmt.Sprintf("019294f0-0000-7000-8000-00000000040%d", i)
+		detail, err := repo.GetBranchRequestDetail(ctx, requestID)
+		if err != nil {
+			t.Fatalf("read fixture %s through repository: %v", requestID, err)
+		}
+		branchID := fmt.Sprintf("019294f0-0000-7000-8000-00000000021%d", i)
+		if detail.BranchID != branchID || string(detail.Status) != "PENDING" ||
+			detail.SubmittedBy != "019294f0-0000-7000-8000-000000000002" ||
+			detail.ReviewedBy != nil || detail.ReviewedAt != nil || detail.RejectionReason != nil {
+			t.Fatalf("unexpected pending fixture: %+v", detail.BranchRequestItem)
+		}
+		if string(detail.Branch.ApprovalStatus) != "PENDING_APPROVAL" || detail.Branch.Enabled {
+			t.Fatalf("pending fixture branch must not be operational: %+v", detail.Branch)
+		}
+		if i == 1 {
+			if len(detail.History) != 2 {
+				t.Fatalf("expected preserved prior rejection plus pending round: %+v", detail.History)
+			}
+			prior := detail.History[0]
+			if prior.ID != "019294f0-0000-7000-8000-000000000400" || string(prior.Status) != "REJECTED" ||
+				prior.ReviewedBy == nil || *prior.ReviewedBy != "019294f0-0000-7000-8000-000000000005" ||
+				prior.ReviewedAt == nil || prior.RejectionReason == nil || *prior.RejectionReason != "Confirm street address" ||
+				!prior.SubmittedAt.Before(*prior.ReviewedAt) || !prior.ReviewedAt.Before(detail.SubmittedAt) {
+				t.Fatalf("invalid preserved review round: %+v", prior)
+			}
+		} else if len(detail.History) != 1 {
+			t.Fatalf("expected single pending round for %s: %+v", requestID, detail.History)
+		}
+	}
+	var unresolvedActors int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_organization.branch_approval_history h
+		WHERE NOT EXISTS (SELECT 1 FROM schema_identity.account a WHERE a.id = h.submitted_by)
+		OR (h.reviewed_by IS NOT NULL AND NOT EXISTS
+			(SELECT 1 FROM schema_identity.account a WHERE a.id = h.reviewed_by))`).Scan(&unresolvedActors); err != nil || unresolvedActors != 0 {
+		t.Fatalf("unresolved fixture actor references: count=%d err=%v", unresolvedActors, err)
 	}
 }

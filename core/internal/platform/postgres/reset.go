@@ -149,9 +149,10 @@ type seedTopology struct {
 		Name     string `json:"name"`
 		Enabled  bool   `json:"enabled"`
 		Branches []struct {
-			Key     string `json:"key"`
-			Name    string `json:"name"`
-			Enabled bool   `json:"enabled"`
+			Key            string `json:"key"`
+			Name           string `json:"name"`
+			Enabled        bool   `json:"enabled"`
+			ApprovalStatus string `json:"approval_status"`
 		} `json:"branches"`
 	} `json:"businesses"`
 	Memberships []struct {
@@ -167,6 +168,16 @@ type seedTopology struct {
 	Customers []struct {
 		Email string `json:"email"`
 	} `json:"customers"`
+	BranchRequests []struct {
+		ID              string     `json:"id"`
+		Branch          string     `json:"branch"`
+		SubmittedBy     string     `json:"submitted_by"`
+		SubmittedAt     time.Time  `json:"submitted_at"`
+		Status          string     `json:"status"`
+		ReviewedBy      string     `json:"reviewed_by"`
+		ReviewedAt      *time.Time `json:"reviewed_at"`
+		RejectionReason *string    `json:"rejection_reason"`
+	} `json:"branch_requests"`
 }
 
 type seedAccountCredential struct {
@@ -184,9 +195,14 @@ var seededBusinessUUIDs = map[string]string{
 }
 
 var seededBranchUUIDs = map[string]string{
-	"B1-CENTRAL": "019294f0-0000-7000-8000-000000000201",
-	"B1-NORTE":   "019294f0-0000-7000-8000-000000000202",
-	"B2-SUR":     "019294f0-0000-7000-8000-000000000203",
+	"B1-CENTRAL":         "019294f0-0000-7000-8000-000000000201",
+	"B1-NORTE":           "019294f0-0000-7000-8000-000000000202",
+	"B2-SUR":             "019294f0-0000-7000-8000-000000000203",
+	"S2-ADMIN-APPROVE":   "019294f0-0000-7000-8000-000000000211",
+	"S2-ADMIN-REJECT":    "019294f0-0000-7000-8000-000000000212",
+	"S2-SUPPORT-APPROVE": "019294f0-0000-7000-8000-000000000213",
+	"S2-SUPPORT-REJECT":  "019294f0-0000-7000-8000-000000000214",
+	"S2-REVIEW-RACE":     "019294f0-0000-7000-8000-000000000215",
 }
 
 var seededAccountUUIDs = map[string]string{
@@ -310,12 +326,16 @@ func loadSeed(ctx context.Context, pool *pgxpool.Pool, topologyPath, accountsPat
 			city := "Buenos Aires"
 			state := "CABA"
 			postal := "C1425"
+			approvalStatus := br.ApprovalStatus
+			if approvalStatus == "" {
+				approvalStatus = "APPROVED"
+			}
 			if _, err := tx.Exec(ctx,
 				`INSERT INTO schema_organization.branch (
 					id, business_id, name, slug, street_address, city, state_province, postal_code,
 					approval_status, coordinates_confirmed, enabled
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'APPROVED', true, $9)`,
-				brID, bID, br.Name, slug, street, city, state, postal, br.Enabled,
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10)`,
+				brID, bID, br.Name, slug, street, city, state, postal, approvalStatus, br.Enabled,
 			); err != nil {
 				return fmt.Errorf("insert branch %s: %w", br.Key, err)
 			}
@@ -401,6 +421,49 @@ func loadSeed(ctx context.Context, pool *pgxpool.Pool, topologyPath, accountsPat
 			memID, accID, bID, brID, m.Role,
 		); err != nil {
 			return fmt.Errorf("insert membership for %s: %w", m.Email, err)
+		}
+	}
+
+	for _, request := range topo.BranchRequests {
+		requestID, ok := actor.NormalizeUUID(request.ID)
+		if !ok {
+			return fmt.Errorf("invalid branch request ID %q", request.ID)
+		}
+		branchID, ok := branchIDs[request.Branch]
+		if !ok {
+			return fmt.Errorf("unknown branch key %q in branch request", request.Branch)
+		}
+		submitter, err := security.NormalizeEmail(request.SubmittedBy)
+		if err != nil {
+			return fmt.Errorf("invalid request submitter: %w", err)
+		}
+		submitterID, ok := accountIDs[submitter+"|"+string(actor.KindWork)]
+		if !ok {
+			return fmt.Errorf("unknown request submitter %q", submitter)
+		}
+		var reviewerID *string
+		if request.ReviewedBy != "" {
+			reviewer, err := security.NormalizeEmail(request.ReviewedBy)
+			if err != nil {
+				return fmt.Errorf("invalid request reviewer: %w", err)
+			}
+			id, ok := accountIDs[reviewer+"|"+string(actor.KindWork)]
+			if !ok {
+				return fmt.Errorf("unknown request reviewer %q", reviewer)
+			}
+			reviewerID = &id
+		}
+		if request.SubmittedAt.IsZero() {
+			return fmt.Errorf("branch request %s requires submitted_at", requestID)
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO schema_organization.branch_approval_history (
+				id, branch_id, submitted_by, submitted_at, status, reviewed_by, reviewed_at, rejection_reason
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			requestID, branchID, submitterID, request.SubmittedAt, request.Status,
+			reviewerID, request.ReviewedAt, request.RejectionReason,
+		); err != nil {
+			return fmt.Errorf("insert branch request %s: %w", requestID, err)
 		}
 	}
 

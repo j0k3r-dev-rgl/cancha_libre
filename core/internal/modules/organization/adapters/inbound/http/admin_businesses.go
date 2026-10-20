@@ -75,10 +75,14 @@ func registerAdminBusinesses(api huma.API, deps Deps) {
 		DefaultStatus: nethttp.StatusOK,
 		Middlewares:   deps.guarded(api),
 		Responses: errorResponses(api,
-			err400Validation, err401Unauthenticated, err403Forbidden, err500Internal,
+			err400Validation, err401Unauthenticated, err403Forbidden, err422Validation, err500Internal,
 		),
 	}, func(ctx context.Context, in *listBusinessesRequest) (*listBusinessesResponse, error) {
 		p, err := deps.principal(ctx)
+		if err != nil {
+			return nil, err
+		}
+		offset, err := platformhttp.PageOffset(in.Page, in.Limit)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +90,7 @@ func registerAdminBusinesses(api huma.API, deps Deps) {
 			Status: in.Status,
 			Search: in.Search,
 			Limit:  in.Limit,
-			Offset: in.Offset,
+			Offset: offset,
 		})
 		if err != nil {
 			return nil, deps.fail(ctx, err)
@@ -109,10 +113,10 @@ func registerAdminBusinesses(api huma.API, deps Deps) {
 		}
 		return &listBusinessesResponse{
 			Body: listBusinessesResponseBody{
-				Items:  viewItems,
-				Total:  total,
-				Limit:  in.Limit,
-				Offset: in.Offset,
+				Items: viewItems,
+				Total: total,
+				Limit: in.Limit,
+				Page:  in.Page,
 			},
 		}, nil
 	})
@@ -402,15 +406,15 @@ type createBusinessResponse struct {
 type listBusinessesRequest struct {
 	Status string `query:"status" example:"active" doc:"Status filter: active, suspended, archived, all."`
 	Search string `query:"search" example:"San Martin" doc:"Search pattern by name or tax ID."`
-	Limit  int    `query:"limit" example:"20" doc:"Page limit."`
-	Offset int    `query:"offset" example:"0" doc:"Page offset."`
+	Limit  int    `query:"limit" default:"20" example:"20" doc:"Page size, from 1 to 100."`
+	Page   int    `query:"page" default:"1" example:"1" doc:"One-based page number."`
 }
 
 type listBusinessesResponseBody struct {
-	Items  []businessSummaryItem `json:"items" example:"[{\"id\":\"019294f0-0000-7000-8000-000000000101\",\"name\":\"Club San Martín\",\"legal_name\":\"San Martín Deportes SRL\",\"tax_id\":\"30-11223344-5\",\"enabled\":true,\"created_at\":\"2026-10-20T10:00:00Z\",\"branches_count\":2,\"active_owners_count\":1}]" doc:"List of business summaries."`
-	Total  int                   `json:"total" example:"1" doc:"Total count."`
-	Limit  int                   `json:"limit" example:"20" doc:"Page limit."`
-	Offset int                   `json:"offset" example:"0" doc:"Page offset."`
+	Items []businessSummaryItem `json:"items" example:"[{\"id\":\"019294f0-0000-7000-8000-000000000101\",\"name\":\"Club San Martín\",\"legal_name\":\"San Martín Deportes SRL\",\"tax_id\":\"30-11223344-5\",\"enabled\":true,\"created_at\":\"2026-10-20T10:00:00Z\",\"branches_count\":2,\"active_owners_count\":1}]" doc:"List of business summaries."`
+	Total int                   `json:"total" example:"1" doc:"Total count."`
+	Limit int                   `json:"limit" example:"20" doc:"Page limit."`
+	Page  int                   `json:"page" example:"1" doc:"One-based page number."`
 }
 
 type listBusinessesResponse struct {
@@ -488,7 +492,7 @@ type reactivateBusinessRequest struct {
 
 type reactivateBusinessResponseBody struct {
 	ID          string     `json:"id" example:"019294f0-0000-7000-8000-000000000101" doc:"Business UUID."`
-	SuspendedAt *time.Time `json:"suspended_at,omitempty" example:"2026-10-20T10:00:00Z" doc:"Suspension timestamp (null)."`
+	SuspendedAt *time.Time `json:"suspended_at" nullable:"true" example:"2026-10-20T10:00:00Z" doc:"Suspension timestamp (null)."`
 	Enabled     bool       `json:"enabled" example:"true" doc:"Enabled status (true)."`
 }
 
@@ -506,7 +510,7 @@ type unarchiveBusinessRequest struct {
 
 type unarchiveBusinessResponseBody struct {
 	ID         string     `json:"id" example:"019294f0-0000-7000-8000-000000000101" doc:"Business UUID."`
-	ArchivedAt *time.Time `json:"archived_at,omitempty" example:"2026-10-20T10:00:00Z" doc:"Archival timestamp (null)."`
+	ArchivedAt *time.Time `json:"archived_at" nullable:"true" example:"2026-10-20T10:00:00Z" doc:"Archival timestamp (null)."`
 }
 
 type unarchiveBusinessResponse struct {

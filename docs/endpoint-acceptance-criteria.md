@@ -119,25 +119,27 @@ All routes are served under the `/api/v1` prefix. Every path parameter is a UUID
 
 | Operation ID | Request shape | Success response | Documented errors (`status` → `type`) |
 | --- | --- | --- | --- |
-| `createBusiness` | `{name, legal_name?, tax_id?, owner_emails?}` | `201` `{id, name, legal_name, tax_id, enabled, created_at, owners: [...]}` | `400` validation; `401` unauthenticated; `403` forbidden; `409` conflict; `415` unsupported-media-type; `500` internal |
-| `listBusinesses` | query: `status?`, `search?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `500` internal |
+| `createBusiness` | `{name, legal_name?, tax_id?, owner_emails?}` | `201` `{id, name, legal_name, tax_id, enabled, created_at, owners: [...]}` | `400` validation; `401` unauthenticated; `403` forbidden; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `listBusinesses` | query: `status?`, `search?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `422` validation; `500` internal |
 | `getBusiness` | none | `200` `{id, name, legal_name, tax_id, enabled, suspended_at, archived_at, created_at, owners: [...], branches: [...]}` | `401` unauthenticated; `403` forbidden; `404` not-found; `500` internal |
-| `updateBusiness` | `{name?, legal_name?, tax_id?}` | `200` `{id, name, legal_name, tax_id, enabled, suspended_at, archived_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `500` internal |
-| `suspendBusiness` | `{reason}` | `200` `{id, suspended_at, enabled}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `500` internal |
+| `updateBusiness` | `{name?, legal_name?, tax_id?}` | `200` `{id, name, legal_name, tax_id, enabled, suspended_at, archived_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `suspendBusiness` | `{reason}` | `200` `{id, suspended_at, enabled}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
 | `reactivateBusiness` | empty body | `200` `{id, suspended_at: null, enabled}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
 | `archiveBusiness` | none | `204` empty body | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
 | `unarchiveBusiness` | empty body | `200` `{id, archived_at: null}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
-| `listBranchRequests` | query: `status?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `500` internal |
+| `listBranchRequests` | query: `status?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `422` validation; `500` internal |
 | `getBranchRequest` | none | `200` `{id, branch_id, business_id, business_name, branch: {...}, status, submitted_by, submitted_at, reviewed_by, reviewed_at, rejection_reason, history: [...]}` | `401` unauthenticated; `403` forbidden; `404` not-found; `500` internal |
 | `approveBranchRequest` | empty body | `200` `{id, branch_id, status: "APPROVED", reviewed_by, reviewed_at}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
-| `rejectBranchRequest` | `{rejection_reason}` | `200` `{id, branch_id, status: "REJECTED", rejection_reason, reviewed_by, reviewed_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `500` internal |
-| `listAdminBranches` | query: `business_id?`, `approval_status?`, `status?`, `city?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `500` internal |
-| `suspendBranch` | `{reason}` | `200` `{id, suspended_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `500` internal |
+| `rejectBranchRequest` | `{rejection_reason}` | `200` `{id, branch_id, status: "REJECTED", rejection_reason, reviewed_by, reviewed_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `listAdminBranches` | query: `business_id?`, `approval_status?`, `status?`, `city?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `422` validation; `500` internal |
+| `suspendBranch` | `{reason}` | `200` `{id, suspended_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
 | `reactivateBranch` | empty body | `200` `{id, suspended_at: null}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
-| `listUsers` | query: `kind?`, `role?`, `status?`, `search?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `500` internal |
+| `listUsers` | query: `kind?`, `role?`, `status?`, `search?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `422` validation; `500` internal |
 | `getUser` | none | `200` `{id, email, display_name, kind, platform_role, status, created_at, memberships: [...]}` | `401` unauthenticated; `403` forbidden; `404` not-found; `500` internal |
-| `suspendUser` | `{reason}` | `200` `{id, status: "SUSPENDED"}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `500` internal |
+| `suspendUser` | `{reason}` | `200` `{id, status: "SUSPENDED"}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
 | `reactivateUser` | empty body | `200` `{id, status: "ACTIVE"}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
+
+S2 pagination is one-based: `page` defaults to `1`, `limit` defaults to `20` and accepts `1..100`. Invalid numeric ranges or an overflowing calculated offset return `400 validation`; non-numeric query values return `422 validation`. Body-schema failures (missing required properties or wrong types) also return `422 validation`; present-but-invalid domain values return `400 validation`. Full semantics are in [Organization Endpoints](design/organization-endpoints.md#4-verification-and-contract-obligations).
 
 ### 5.3 Task level
 

@@ -23,10 +23,14 @@ func registerAdminUsers(api huma.API, deps Deps) {
 		DefaultStatus: nethttp.StatusOK,
 		Middlewares:   deps.guarded(api),
 		Responses: errorResponses(api,
-			err400Validation, err401Unauthenticated, err403Forbidden, err500Internal,
+			err400Validation, err401Unauthenticated, err403Forbidden, err422Validation, err500Internal,
 		),
 	}, func(ctx context.Context, in *listUsersRequest) (*listUsersResponse, error) {
 		p, err := deps.principal(ctx)
+		if err != nil {
+			return nil, err
+		}
+		offset, err := platformhttp.PageOffset(in.Page, in.Limit)
 		if err != nil {
 			return nil, err
 		}
@@ -36,7 +40,7 @@ func registerAdminUsers(api huma.API, deps Deps) {
 			Status: in.Status,
 			Search: in.Search,
 			Limit:  in.Limit,
-			Offset: in.Offset,
+			Offset: offset,
 		})
 		if err != nil {
 			return nil, deps.fail(ctx, err)
@@ -62,10 +66,10 @@ func registerAdminUsers(api huma.API, deps Deps) {
 		}
 		return &listUsersResponse{
 			Body: listUsersResponseBody{
-				Items:  viewItems,
-				Total:  total,
-				Limit:  in.Limit,
-				Offset: in.Offset,
+				Items: viewItems,
+				Total: total,
+				Limit: in.Limit,
+				Page:  in.Page,
 			},
 		}, nil
 	})
@@ -205,15 +209,15 @@ type listUsersRequest struct {
 	Role   string `query:"role" example:"ADMIN" doc:"Filter by role."`
 	Status string `query:"status" example:"ACTIVE" doc:"Filter by account status."`
 	Search string `query:"search" example:"owner" doc:"Search pattern by email or display name."`
-	Limit  int    `query:"limit" example:"20" doc:"Page limit."`
-	Offset int    `query:"offset" example:"0" doc:"Page offset."`
+	Limit  int    `query:"limit" default:"20" example:"20" doc:"Page size, from 1 to 100."`
+	Page   int    `query:"page" default:"1" example:"1" doc:"One-based page number."`
 }
 
 type listUsersResponseBody struct {
-	Items  []userSummaryItemResponse `json:"items" example:"[{\"id\":\"019294f0-0000-7000-8000-000000000002\",\"email\":\"owner@canchalibre.local\",\"display_name\":\"Juan Pérez\",\"kind\":\"WORK\",\"platform_role\":\"ADMIN\",\"status\":\"ACTIVE\",\"created_at\":\"2026-10-20T10:00:00Z\",\"memberships_count\":1}]" doc:"List of user summaries."`
-	Total  int                       `json:"total" example:"5" doc:"Total count."`
-	Limit  int                       `json:"limit" example:"20" doc:"Page limit."`
-	Offset int                       `json:"offset" example:"0" doc:"Page offset."`
+	Items []userSummaryItemResponse `json:"items" example:"[{\"id\":\"019294f0-0000-7000-8000-000000000002\",\"email\":\"owner@canchalibre.local\",\"display_name\":\"Juan Pérez\",\"kind\":\"WORK\",\"platform_role\":\"ADMIN\",\"status\":\"ACTIVE\",\"created_at\":\"2026-10-20T10:00:00Z\",\"memberships_count\":1}]" doc:"List of user summaries."`
+	Total int                       `json:"total" example:"5" doc:"Total count."`
+	Limit int                       `json:"limit" example:"20" doc:"Page limit."`
+	Page  int                       `json:"page" example:"1" doc:"One-based page number."`
 }
 
 type listUsersResponse struct {

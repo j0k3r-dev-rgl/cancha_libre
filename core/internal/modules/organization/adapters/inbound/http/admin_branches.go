@@ -23,17 +23,21 @@ func registerAdminBranches(api huma.API, deps Deps) {
 		DefaultStatus: nethttp.StatusOK,
 		Middlewares:   deps.guarded(api),
 		Responses: errorResponses(api,
-			err400Validation, err401Unauthenticated, err403Forbidden, err500Internal,
+			err400Validation, err401Unauthenticated, err403Forbidden, err422Validation, err500Internal,
 		),
 	}, func(ctx context.Context, in *listBranchRequestsRequest) (*listBranchRequestsResponse, error) {
 		p, err := deps.principal(ctx)
 		if err != nil {
 			return nil, err
 		}
+		offset, err := platformhttp.PageOffset(in.Page, in.Limit)
+		if err != nil {
+			return nil, err
+		}
 		items, total, err := deps.Service.ListBranchRequests(ctx, p, ports.BranchRequestFilter{
 			Status: in.Status,
 			Limit:  in.Limit,
-			Offset: in.Offset,
+			Offset: offset,
 		})
 		if err != nil {
 			return nil, deps.fail(ctx, err)
@@ -57,10 +61,10 @@ func registerAdminBranches(api huma.API, deps Deps) {
 		}
 		return &listBranchRequestsResponse{
 			Body: listBranchRequestsResponseBody{
-				Items:  viewItems,
-				Total:  total,
-				Limit:  in.Limit,
-				Offset: in.Offset,
+				Items: viewItems,
+				Total: total,
+				Limit: in.Limit,
+				Page:  in.Page,
 			},
 		}, nil
 	})
@@ -227,10 +231,14 @@ func registerAdminBranches(api huma.API, deps Deps) {
 		DefaultStatus: nethttp.StatusOK,
 		Middlewares:   deps.guarded(api),
 		Responses: errorResponses(api,
-			err400Validation, err401Unauthenticated, err403Forbidden, err500Internal,
+			err400Validation, err401Unauthenticated, err403Forbidden, err422Validation, err500Internal,
 		),
 	}, func(ctx context.Context, in *listAdminBranchesRequest) (*listAdminBranchesResponse, error) {
 		p, err := deps.principal(ctx)
+		if err != nil {
+			return nil, err
+		}
+		offset, err := platformhttp.PageOffset(in.Page, in.Limit)
 		if err != nil {
 			return nil, err
 		}
@@ -240,7 +248,7 @@ func registerAdminBranches(api huma.API, deps Deps) {
 			Status:         in.Status,
 			City:           in.City,
 			Limit:          in.Limit,
-			Offset:         in.Offset,
+			Offset:         offset,
 		})
 		if err != nil {
 			return nil, deps.fail(ctx, err)
@@ -267,10 +275,10 @@ func registerAdminBranches(api huma.API, deps Deps) {
 		}
 		return &listAdminBranchesResponse{
 			Body: listAdminBranchesResponseBody{
-				Items:  viewItems,
-				Total:  total,
-				Limit:  in.Limit,
-				Offset: in.Offset,
+				Items: viewItems,
+				Total: total,
+				Limit: in.Limit,
+				Page:  in.Page,
 			},
 		}, nil
 	})
@@ -356,15 +364,15 @@ type branchRequestItemResponse struct {
 
 type listBranchRequestsRequest struct {
 	Status string `query:"status" example:"PENDING" doc:"Status filter: PENDING, APPROVED, REJECTED."`
-	Limit  int    `query:"limit" example:"20" doc:"Page limit."`
-	Offset int    `query:"offset" example:"0" doc:"Page offset."`
+	Limit  int    `query:"limit" default:"20" example:"20" doc:"Page size, from 1 to 100."`
+	Page   int    `query:"page" default:"1" example:"1" doc:"One-based page number."`
 }
 
 type listBranchRequestsResponseBody struct {
-	Items  []branchRequestItemResponse `json:"items" example:"[{\"id\":\"019294f0-0000-7000-8000-000000000301\",\"branch_id\":\"019294f0-0000-7000-8000-000000000201\",\"business_id\":\"019294f0-0000-7000-8000-000000000101\",\"business_name\":\"Club San Martín\",\"branch_name\":\"Sede Belgrano\",\"submitted_by\":\"019294f0-0000-7000-8000-000000000002\",\"submitted_at\":\"2026-10-20T10:00:00Z\",\"status\":\"PENDING\"}]" doc:"List of branch requests."`
-	Total  int                         `json:"total" example:"1" doc:"Total count."`
-	Limit  int                         `json:"limit" example:"20" doc:"Page limit."`
-	Offset int                         `json:"offset" example:"0" doc:"Page offset."`
+	Items []branchRequestItemResponse `json:"items" example:"[{\"id\":\"019294f0-0000-7000-8000-000000000301\",\"branch_id\":\"019294f0-0000-7000-8000-000000000201\",\"business_id\":\"019294f0-0000-7000-8000-000000000101\",\"business_name\":\"Club San Martín\",\"branch_name\":\"Sede Belgrano\",\"submitted_by\":\"019294f0-0000-7000-8000-000000000002\",\"submitted_at\":\"2026-10-20T10:00:00Z\",\"status\":\"PENDING\"}]" doc:"List of branch requests."`
+	Total int                         `json:"total" example:"1" doc:"Total count."`
+	Limit int                         `json:"limit" example:"20" doc:"Page limit."`
+	Page  int                         `json:"page" example:"1" doc:"One-based page number."`
 }
 
 type listBranchRequestsResponse struct {
@@ -477,8 +485,8 @@ type listAdminBranchesRequest struct {
 	ApprovalStatus string `query:"approval_status" example:"APPROVED" doc:"Approval status filter: PENDING_APPROVAL, APPROVED, REJECTED."`
 	Status         string `query:"status" example:"active" doc:"Operational status filter: active, suspended, archived, all."`
 	City           string `query:"city" example:"Buenos Aires" doc:"Filter by city."`
-	Limit          int    `query:"limit" example:"20" doc:"Page limit."`
-	Offset         int    `query:"offset" example:"0" doc:"Page offset."`
+	Limit          int    `query:"limit" default:"20" example:"20" doc:"Page size, from 1 to 100."`
+	Page           int    `query:"page" default:"1" example:"1" doc:"One-based page number."`
 }
 
 type adminBranchViewItem struct {
@@ -499,10 +507,10 @@ type adminBranchViewItem struct {
 }
 
 type listAdminBranchesResponseBody struct {
-	Items  []adminBranchViewItem `json:"items" example:"[{\"id\":\"019294f0-0000-7000-8000-000000000201\",\"business_id\":\"019294f0-0000-7000-8000-000000000101\",\"business_name\":\"Club San Martín\",\"name\":\"Sede Belgrano\",\"slug\":\"sede-belgrano\",\"city\":\"Buenos Aires\",\"state_province\":\"CABA\",\"approval_status\":\"APPROVED\",\"coordinates_confirmed\":true,\"enabled\":true,\"is_published\":true,\"created_at\":\"2026-10-20T10:00:00Z\"}]" doc:"List of branch views."`
-	Total  int                   `json:"total" example:"3" doc:"Total count."`
-	Limit  int                   `json:"limit" example:"20" doc:"Page limit."`
-	Offset int                   `json:"offset" example:"0" doc:"Page offset."`
+	Items []adminBranchViewItem `json:"items" example:"[{\"id\":\"019294f0-0000-7000-8000-000000000201\",\"business_id\":\"019294f0-0000-7000-8000-000000000101\",\"business_name\":\"Club San Martín\",\"name\":\"Sede Belgrano\",\"slug\":\"sede-belgrano\",\"city\":\"Buenos Aires\",\"state_province\":\"CABA\",\"approval_status\":\"APPROVED\",\"coordinates_confirmed\":true,\"enabled\":true,\"is_published\":true,\"created_at\":\"2026-10-20T10:00:00Z\"}]" doc:"List of branch views."`
+	Total int                   `json:"total" example:"3" doc:"Total count."`
+	Limit int                   `json:"limit" example:"20" doc:"Page limit."`
+	Page  int                   `json:"page" example:"1" doc:"One-based page number."`
 }
 
 type listAdminBranchesResponse struct {
@@ -533,7 +541,7 @@ type reactivateBranchRequest struct {
 
 type reactivateBranchResponseBody struct {
 	ID          string     `json:"id" example:"019294f0-0000-7000-8000-000000000201" doc:"Branch UUID."`
-	SuspendedAt *time.Time `json:"suspended_at,omitempty" example:"2026-10-20T10:00:00Z" doc:"Suspension timestamp (null)."`
+	SuspendedAt *time.Time `json:"suspended_at" nullable:"true" example:"2026-10-20T10:00:00Z" doc:"Suspension timestamp (null)."`
 }
 
 type reactivateBranchResponse struct {

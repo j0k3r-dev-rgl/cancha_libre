@@ -193,12 +193,14 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusConflict:            {platformhttp.TypeConflict},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"listBusinesses": {
 		http.StatusBadRequest:          {platformhttp.TypeValidation},
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
 		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"getBusiness": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
@@ -213,6 +215,7 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusNotFound:            {platformhttp.TypeNotFound},
 		http.StatusConflict:            {platformhttp.TypeConflict},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"suspendBusiness": {
 		http.StatusBadRequest:          {platformhttp.TypeValidation},
@@ -221,6 +224,7 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusNotFound:            {platformhttp.TypeNotFound},
 		http.StatusConflict:            {platformhttp.TypeConflict},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"reactivateBusiness": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
@@ -248,6 +252,7 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
 		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"getBranchRequest": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
@@ -269,12 +274,14 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusNotFound:            {platformhttp.TypeNotFound},
 		http.StatusConflict:            {platformhttp.TypeConflict},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"listAdminBranches": {
 		http.StatusBadRequest:          {platformhttp.TypeValidation},
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
 		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"suspendBranch": {
 		http.StatusBadRequest:          {platformhttp.TypeValidation},
@@ -283,6 +290,7 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusNotFound:            {platformhttp.TypeNotFound},
 		http.StatusConflict:            {platformhttp.TypeConflict},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"reactivateBranch": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
@@ -296,6 +304,7 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
 		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"getUser": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
@@ -310,6 +319,7 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusNotFound:            {platformhttp.TypeNotFound},
 		http.StatusConflict:            {platformhttp.TypeConflict},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
 	},
 	"reactivateUser": {
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},

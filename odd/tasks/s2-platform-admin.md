@@ -59,11 +59,11 @@ Quoted verbatim from the user and the frozen S2 contracts (`docs/roadmap-backend
 - T2.2 Implement domain models, ports, and core use cases for business governance, branch approval inbox, and global user management, with pure domain unit tests. — S1, S2, S3, S4, S5 — route: inline — status: done — commit: `9403d44`
 - T2.3 Implement outbound PostgreSQL repositories for organizations, branch approvals, and administrative user queries, with integration tests on PostgreSQL port 5435. — S2, S3, S4, S5 — route: inline — status: done — commit: `accec99`
 - T2.4 Implement inbound HTTP adapters for the 19 S2 operations, wire Guard RBAC (`ADMIN` and `SOPORTE`), connect composition root in `core/cmd/api`, and verify OpenAPI 3.1 contracts (`spec_test.go` + `vacuum lint`). — S1, S2, S3, S4 — route: inline — status: done — commit: `ac31d85`
-- T2.5 Run deterministic checks (`go test -race ./...`, `verify-contract.sh --check`), execute `api-contract-verifier` against the 19 endpoints (§5.2 matrix + adversarial tests), and close findings to achieve 100% gate pass. — S6 — route: delegated verification (`api-contract-verifier`) — status: done — commit: pending
+- T2.5 Run deterministic checks (`go test -race ./...`, `verify-contract.sh --check`), execute `api-contract-verifier` against the 19 endpoints (§5.2 matrix + adversarial tests), and close findings to achieve 100% gate pass. — S6 — route: delegated verification (`api-contract-verifier`) — status: done — commit: `762e588`
 - T2.6 Reject unsupported NUL text inputs before S2 persistence and prove the reported createBusiness failure with RED/GREEN regression tests. — S2, S3, S4, S6 — route: inline (user explicitly requested after cancelling worker) — status: done — commit: `40e7d45`
 - T2.7 Supply isolated development branch-request fixtures for ADMIN/SOPORTE approval and rejection, retaining existing S1 seed behavior. — S3, S5, S6 — route: inline (user explicitly requested after unavailable worker) — status: done — commit: `bf6cfd3`
 - T2.8 Restore frozen page/limit pagination, required nullable lifecycle responses, and complete validation-status inventories; reproduce findings F1/F2 before fixing and verify F3 structurally. — S2, S3, S4, S6 — route: inline (user authorized correction batch) — status: done — commit: `f9548dc`
-- T2.9 Document a minimal read-only verification access proposal without applying roles, credentials or grants. — S6 — route: inline proposal only — status: done — commit: pending
+- T2.9 Document a minimal read-only verification access proposal without applying roles, credentials or grants. — S6 — route: inline proposal only — status: done — commit: `762e588`
 
 ## Log
 

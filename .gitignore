@@ -1,5 +1,7 @@
 # Local Pi runtime state
 .atl/
+.pi/orchestrator-supervisor/
+.pi/subagents.json
 
 # Local tool state, per machine and never shared.
 # CodeGraph keeps its whole directory local (it also ships its own inner

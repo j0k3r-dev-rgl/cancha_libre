@@ -27,7 +27,7 @@ type Deps struct {
 	Logger  *slog.Logger
 }
 
-// Register registers the 6 organization operations of the frozen S1 inventory.
+// Register registers the organization operations for S1 and S2 (platform admin).
 func Register(api huma.API, deps Deps) {
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
@@ -38,6 +38,10 @@ func Register(api huma.API, deps Deps) {
 	registerInviteMember(api, deps)
 	registerRevokeMembership(api, deps)
 	registerRevokeInvitation(api, deps)
+
+	// S2 Platform Administration
+	registerAdminBusinesses(api, deps)
+	registerAdminBranches(api, deps)
 }
 
 var (
@@ -114,8 +118,17 @@ func problemFromDomain(err error) huma.StatusError {
 		return platformhttp.NewTypedError(nethttp.StatusForbidden, platformhttp.TypeForbidden, "The authenticated actor is not permitted to perform this action.")
 	case errors.Is(err, domain.ErrNotFound):
 		return platformhttp.NewTypedError(nethttp.StatusNotFound, platformhttp.TypeNotFound, "The requested resource was not found.")
-	case errors.Is(err, domain.ErrConflict):
-		return platformhttp.NewTypedError(nethttp.StatusConflict, platformhttp.TypeConflict, "The request contradicts the current state.")
+	case errors.Is(err, domain.ErrConflict),
+		errors.Is(err, domain.ErrAlreadySuspended),
+		errors.Is(err, domain.ErrNotSuspended),
+		errors.Is(err, domain.ErrAlreadyArchived),
+		errors.Is(err, domain.ErrNotArchived),
+		errors.Is(err, domain.ErrActiveReservations),
+		errors.Is(err, domain.ErrAlreadyResolved):
+		return platformhttp.NewTypedError(nethttp.StatusConflict, platformhttp.TypeConflict, err.Error())
+	case errors.Is(err, domain.ErrBusinessSuspended),
+		errors.Is(err, domain.ErrBranchSuspended):
+		return platformhttp.NewTypedError(nethttp.StatusForbidden, platformhttp.TypeForbidden, err.Error())
 	case errors.Is(err, domain.ErrLastCoOwner):
 		return platformhttp.NewTypedError(nethttp.StatusConflict, platformhttp.TypeLastCoOwner, "Cannot revoke the last active co-owner of a business.")
 	case errors.Is(err, domain.ErrContextNotAuthorized):

@@ -1,6 +1,7 @@
 ---
 name: api-contract-verifier
 description: Read-only empirical and adversarial verifier of the CanchaLibre HTTP contract (docs/endpoint-acceptance-criteria.md section 5.4). Boots the API, reads the OpenAPI 3.1 spec through api-tools, exercises the documented case matrix per endpoint, attacks every endpoint with hostile, malformed, boundary, normalization and SQL-injection input, proves each refusal mutated nothing through read-only SQL, and returns a 100%-gated report per case.
+model: cliproxyapi/J0k3r6/gemini-3.8-flash-high
 tools:
   - read
   - grep

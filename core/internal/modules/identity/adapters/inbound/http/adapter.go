@@ -37,7 +37,7 @@ type Deps struct {
 	Logger  *slog.Logger
 }
 
-// Register registers the 11 identity operations of the frozen S1 inventory.
+// Register registers the identity operations for S1 and S2 (platform admin).
 func Register(api huma.API, deps Deps) {
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
@@ -53,6 +53,9 @@ func Register(api huma.API, deps Deps) {
 	registerSelectContext(api, deps)
 	registerInviteSupportOperator(api, deps)
 	registerRevokeSupportOperator(api, deps)
+
+	// S2 Platform Administration
+	registerAdminUsers(api, deps)
 }
 
 // errorSpecs are the documented error responses of the identity inventory. The

@@ -104,7 +104,7 @@ func (r *Repository) ListBusinesses(ctx context.Context, filter ports.BusinessFi
 		       (SELECT count(*) FROM schema_organization.membership m WHERE m.business_id = b.id AND m.role = 'OWNER' AND m.revoked_at IS NULL) as active_owners_count
 		FROM schema_organization.business b
 		%s
-		ORDER BY b.created_at DESC
+		ORDER BY b.created_at DESC, b.id DESC
 		LIMIT $%d OFFSET $%d
 	`, whereClause, argIdx, argIdx+1)
 
@@ -414,8 +414,26 @@ func (r *Repository) UnarchiveBusiness(ctx context.Context, businessID string) (
 		return domain.Business{}, domain.ErrNotFound
 	}
 
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.Business{}, fmt.Errorf("begin unarchive tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Restore branches that were archived when the business was archived
+	_, err = tx.Exec(ctx, `
+		UPDATE schema_organization.branch
+		SET archived_at = NULL
+		WHERE business_id = $1::uuid
+		  AND archived_at IS NOT NULL
+		  AND archived_at = (SELECT archived_at FROM schema_organization.business WHERE id = $1::uuid)
+	`, busID)
+	if err != nil {
+		return domain.Business{}, fmt.Errorf("unarchive business branches: %w", err)
+	}
+
 	var b domain.Business
-	err := r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		UPDATE schema_organization.business
 		SET archived_at = NULL
 		WHERE id = $1::uuid AND archived_at IS NOT NULL
@@ -434,7 +452,7 @@ func (r *Repository) UnarchiveBusiness(ctx context.Context, businessID string) (
 		if errors.Is(err, pgx.ErrNoRows) {
 			var exists bool
 			var archivedAt *time.Time
-			checkErr := r.pool.QueryRow(ctx, "SELECT true, archived_at FROM schema_organization.business WHERE id = $1::uuid", busID).Scan(&exists, &archivedAt)
+			checkErr := tx.QueryRow(ctx, "SELECT true, archived_at FROM schema_organization.business WHERE id = $1::uuid", busID).Scan(&exists, &archivedAt)
 			if errors.Is(checkErr, pgx.ErrNoRows) {
 				return domain.Business{}, domain.ErrNotFound
 			}
@@ -445,6 +463,11 @@ func (r *Repository) UnarchiveBusiness(ctx context.Context, businessID string) (
 		}
 		return domain.Business{}, fmt.Errorf("unarchive business: %w", err)
 	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Business{}, fmt.Errorf("commit unarchive tx: %w", err)
+	}
+
 	return b, nil
 }
 
@@ -494,7 +517,7 @@ func (r *Repository) ListBranchRequests(ctx context.Context, filter ports.Branch
 		JOIN schema_organization.branch br ON br.id = h.branch_id
 		JOIN schema_organization.business b ON b.id = br.business_id
 		%s
-		ORDER BY h.submitted_at DESC
+		ORDER BY h.submitted_at DESC, h.id DESC
 		LIMIT $%d OFFSET $%d
 	`, whereClause, argIdx, argIdx+1)
 
@@ -842,7 +865,7 @@ func (r *Repository) ListBranches(ctx context.Context, filter ports.BranchFilter
 		FROM schema_organization.branch br
 		JOIN schema_organization.business b ON b.id = br.business_id
 		%s
-		ORDER BY br.created_at DESC
+		ORDER BY br.created_at DESC, br.id DESC
 		LIMIT $%d OFFSET $%d
 	`, whereClause, argIdx, argIdx+1)
 

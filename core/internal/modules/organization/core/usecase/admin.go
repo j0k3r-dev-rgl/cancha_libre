@@ -33,6 +33,11 @@ func (s *Service) CreateBusiness(ctx context.Context, p actor.Principal, in Crea
 		return domain.BusinessDetail{}, domain.ErrForbidden
 	}
 
+	if hasNULText(&in.Name, in.LegalName, in.TaxID) {
+		s.audit(ctx, "create_business", "REFUSED", &p.AccountID, nil, "text contains an unsupported NUL character", nil)
+		return domain.BusinessDetail{}, domain.ErrValidation
+	}
+
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		s.audit(ctx, "create_business", "REFUSED", &p.AccountID, nil, "name cannot be empty", nil)
@@ -134,6 +139,11 @@ func (s *Service) ListBusinesses(ctx context.Context, p actor.Principal, filter 
 		return nil, 0, domain.ErrValidation
 	}
 
+	if strings.ContainsRune(filter.Search, 0) {
+		s.audit(ctx, "list_businesses", "REFUSED", &p.AccountID, nil, "search contains an unsupported NUL character", nil)
+		return nil, 0, domain.ErrValidation
+	}
+
 	return s.repo.ListBusinesses(ctx, filter)
 }
 
@@ -191,6 +201,11 @@ func (s *Service) UpdateBusiness(ctx context.Context, p actor.Principal, busines
 		return domain.Business{}, domain.ErrNotFound
 	}
 
+	if hasNULText(in.Name, in.LegalName, in.TaxID) {
+		s.audit(ctx, "update_business", "REFUSED", &p.AccountID, nil, "text contains an unsupported NUL character", nil)
+		return domain.Business{}, domain.ErrValidation
+	}
+
 	if in.Name != nil && strings.TrimSpace(*in.Name) == "" {
 		s.audit(ctx, "update_business", "REFUSED", &p.AccountID, nil, "name cannot be empty", nil)
 		return domain.Business{}, domain.ErrValidation
@@ -219,7 +234,7 @@ func (s *Service) SuspendBusiness(ctx context.Context, p actor.Principal, busine
 		s.audit(ctx, "suspend_business", "REFUSED", &p.AccountID, nil, "invalid businessId UUID", nil)
 		return domain.Business{}, domain.ErrNotFound
 	}
-	if strings.TrimSpace(reason) == "" {
+	if strings.TrimSpace(reason) == "" || strings.ContainsRune(reason, 0) {
 		s.audit(ctx, "suspend_business", "REFUSED", &p.AccountID, nil, "reason is required", nil)
 		return domain.Business{}, domain.ErrValidation
 	}
@@ -382,7 +397,7 @@ func (s *Service) RejectBranchRequest(ctx context.Context, p actor.Principal, re
 		return domain.BranchApprovalHistory{}, domain.ErrNotFound
 	}
 	trimmedReason := strings.TrimSpace(reason)
-	if trimmedReason == "" {
+	if trimmedReason == "" || strings.ContainsRune(trimmedReason, 0) {
 		s.audit(ctx, "reject_branch_request", "REFUSED", &p.AccountID, nil, "rejection_reason cannot be empty", nil)
 		return domain.BranchApprovalHistory{}, domain.ErrValidation
 	}
@@ -426,6 +441,11 @@ func (s *Service) ListBranches(ctx context.Context, p actor.Principal, filter po
 		return nil, 0, domain.ErrValidation
 	}
 
+	if hasNULText(&filter.City, &filter.ApprovalStatus) {
+		s.audit(ctx, "list_branches", "REFUSED", &p.AccountID, nil, "filter contains an unsupported NUL character", nil)
+		return nil, 0, domain.ErrValidation
+	}
+
 	return s.repo.ListBranches(ctx, filter)
 }
 
@@ -440,7 +460,7 @@ func (s *Service) SuspendBranch(ctx context.Context, p actor.Principal, branchID
 		s.audit(ctx, "suspend_branch", "REFUSED", &p.AccountID, nil, "invalid branchId UUID", nil)
 		return domain.Branch{}, domain.ErrNotFound
 	}
-	if strings.TrimSpace(reason) == "" {
+	if strings.TrimSpace(reason) == "" || strings.ContainsRune(reason, 0) {
 		s.audit(ctx, "suspend_branch", "REFUSED", &p.AccountID, nil, "reason is required", nil)
 		return domain.Branch{}, domain.ErrValidation
 	}
@@ -480,4 +500,15 @@ func (s *Service) ReactivateBranch(ctx context.Context, p actor.Principal, branc
 		"branch_id": normID,
 	})
 	return b, nil
+}
+
+// PostgreSQL text cannot represent NUL. Refuse it before persistence or audit
+// writes, without restricting otherwise supported Unicode and whitespace.
+func hasNULText(values ...*string) bool {
+	for _, value := range values {
+		if value != nil && strings.ContainsRune(*value, 0) {
+			return true
+		}
+	}
+	return false
 }

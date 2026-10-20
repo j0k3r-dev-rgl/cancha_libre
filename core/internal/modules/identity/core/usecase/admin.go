@@ -33,6 +33,22 @@ func (s *Service) ListUsers(ctx context.Context, p actor.Principal, filter ports
 		return nil, 0, domain.ErrValidation
 	}
 
+	filter.Role = strings.ToUpper(strings.TrimSpace(filter.Role))
+	if filter.Role != "" &&
+		filter.Role != string(actor.RoleAdmin) &&
+		filter.Role != string(actor.RoleSoporte) &&
+		filter.Role != string(actor.RoleOwner) &&
+		filter.Role != string(actor.RoleEmployee) &&
+		filter.Role != string(actor.RolePlayer) {
+		s.auditRefused(ctx, "list_users", &p.AccountID, nil, "invalid role filter")
+		return nil, 0, domain.ErrValidation
+	}
+
+	if strings.ContainsRune(filter.Search, 0) || strings.ContainsRune(filter.Role, 0) {
+		s.auditRefused(ctx, "list_users", &p.AccountID, nil, "filter contains an unsupported NUL character")
+		return nil, 0, domain.ErrValidation
+	}
+
 	return s.repo.ListUsers(ctx, filter)
 }
 
@@ -95,7 +111,7 @@ func (s *Service) SuspendUser(ctx context.Context, p actor.Principal, targetUser
 		s.auditRefused(ctx, "suspend_user", &p.AccountID, &normID, "admin cannot suspend their own account")
 		return domain.ErrForbidden
 	}
-	if strings.TrimSpace(reason) == "" {
+	if strings.TrimSpace(reason) == "" || strings.ContainsRune(reason, 0) {
 		s.auditRefused(ctx, "suspend_user", &p.AccountID, &normID, "reason is required")
 		return domain.ErrValidation
 	}

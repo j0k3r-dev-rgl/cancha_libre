@@ -34,10 +34,17 @@ func (r *Repository) ListUsers(ctx context.Context, filter ports.UserFilter) ([]
 
 	if filter.Role != "" {
 		roleUpper := strings.ToUpper(filter.Role)
-		if roleUpper == string(actor.RoleAdmin) || roleUpper == string(actor.RoleSoporte) {
+		switch roleUpper {
+		case string(actor.RoleAdmin), string(actor.RoleSoporte):
 			conditions = append(conditions, fmt.Sprintf("a.platform_role = $%d", argIdx))
 			args = append(args, roleUpper)
 			argIdx++
+		case string(actor.RoleOwner):
+			conditions = append(conditions, "EXISTS (SELECT 1 FROM schema_organization.membership m WHERE m.account_id = a.id AND m.role = 'OWNER' AND m.revoked_at IS NULL)")
+		case string(actor.RoleEmployee):
+			conditions = append(conditions, "EXISTS (SELECT 1 FROM schema_organization.membership m WHERE m.account_id = a.id AND m.role = 'EMPLOYEE' AND m.revoked_at IS NULL)")
+		case string(actor.RolePlayer):
+			conditions = append(conditions, "a.kind = 'CUSTOMER'")
 		}
 	}
 
@@ -73,7 +80,7 @@ func (r *Repository) ListUsers(ctx context.Context, filter ports.UserFilter) ([]
 		       (SELECT count(*) FROM schema_organization.membership m WHERE m.account_id = a.id AND m.revoked_at IS NULL) as memberships_count
 		FROM schema_identity.account a
 		%s
-		ORDER BY a.created_at DESC
+		ORDER BY a.created_at DESC, a.id DESC
 		LIMIT $%d OFFSET $%d
 	`, whereClause, argIdx, argIdx+1)
 

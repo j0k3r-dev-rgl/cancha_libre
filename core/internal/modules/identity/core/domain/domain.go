@@ -93,6 +93,41 @@ type LoginContextItem struct {
 	Role       actor.Role `json:"role" example:"OWNER" doc:"Membership role in this context."`
 }
 
+// UserMembershipView represents an active or historical membership for a user in the admin view.
+type UserMembershipView struct {
+	ID           string     `json:"id"`
+	BusinessID   string     `json:"business_id"`
+	BusinessName string     `json:"business_name"`
+	BranchID     *string    `json:"branch_id,omitempty"`
+	BranchName   *string    `json:"branch_name,omitempty"`
+	Role         actor.Role `json:"role"`
+	CreatedAt    time.Time  `json:"created_at"`
+}
+
+// UserSummary represents a user account item in the admin user listing.
+type UserSummary struct {
+	ID               string            `json:"id"`
+	Email            string            `json:"email"`
+	DisplayName      *string           `json:"display_name,omitempty"`
+	Kind             actor.AccountKind `json:"kind"`
+	PlatformRole     *actor.Role       `json:"platform_role,omitempty"`
+	Status           string            `json:"status"`
+	CreatedAt        time.Time         `json:"created_at"`
+	MembershipsCount int               `json:"memberships_count"`
+}
+
+// UserDetail represents the full profile and memberships of a user in the admin view.
+type UserDetail struct {
+	ID           string               `json:"id"`
+	Email        string               `json:"email"`
+	DisplayName  *string              `json:"display_name,omitempty"`
+	Kind         actor.AccountKind    `json:"kind"`
+	PlatformRole *actor.Role          `json:"platform_role,omitempty"`
+	Status       string               `json:"status"`
+	CreatedAt    time.Time            `json:"created_at"`
+	Memberships  []UserMembershipView `json:"memberships"`
+}
+
 // AuditEntry represents an append-only row in schema_identity.identity_audit.
 type AuditEntry struct {
 	Event            string
@@ -102,3 +137,5 @@ type AuditEntry struct {
 	Reason           string
 	Detail           map[string]any
 }
+
+

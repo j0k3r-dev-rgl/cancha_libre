@@ -185,6 +185,10 @@ func (nilScopeBridge) EnsureMembershipOnActivation(context.Context, string, stri
 	return errScopeBridgeUnavailable
 }
 
+func (nilScopeBridge) ListUserMemberships(context.Context, string) ([]identitydomain.UserMembershipView, error) {
+	return nil, errScopeBridgeUnavailable
+}
+
 // discardEmailSender is the non-delivering email adapter. The provisioning
 // command hands the activation URL to the operator on stdout instead of sending
 // mail, and it never logs or persists the raw token.

@@ -56,8 +56,8 @@ Quoted verbatim from the user and the frozen S2 contracts (`docs/roadmap-backend
 ## Tasks
 
 - T2.1 Update PostgreSQL schema DDL for `schema_organization` and `schema_identity.account` status constraint (`SUSPENDED`), update reset and seed routines, and verify database startup. — S5 — route: inline — status: done — commit: `d1f2555`
-- T2.2 Implement domain models, ports, and core use cases for business governance, branch approval inbox, and global user management, with pure domain unit tests. — S1, S2, S3, S4, S5 — route: inline — status: pending — commit: pending
-- T2.3 Implement outbound PostgreSQL repositories for organizations, branch approvals, and administrative user queries, with integration tests on PostgreSQL port 5435. — S2, S3, S4, S5 — route: inline — status: pending — commit: pending
+- T2.2 Implement domain models, ports, and core use cases for business governance, branch approval inbox, and global user management, with pure domain unit tests. — S1, S2, S3, S4, S5 — route: inline — status: done — commit: `9403d44`
+- T2.3 Implement outbound PostgreSQL repositories for organizations, branch approvals, and administrative user queries, with integration tests on PostgreSQL port 5435. — S2, S3, S4, S5 — route: inline — status: done — commit: `pending`
 - T2.4 Implement inbound HTTP adapters for the 19 S2 operations, wire Guard RBAC (`ADMIN` and `SOPORTE`), connect composition root in `core/cmd/api`, and verify OpenAPI 3.1 contracts (`spec_test.go` + `vacuum lint`). — S1, S2, S3, S4 — route: inline — status: pending — commit: pending
 - T2.5 Run deterministic checks (`go test -race ./...`, `verify-contract.sh --check`), execute `api-contract-verifier` against the 19 endpoints (§5.2 matrix + adversarial tests), and close findings to achieve 100% gate pass. — S6 — route: inline — status: pending — commit: pending
 

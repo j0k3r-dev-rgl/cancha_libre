@@ -87,6 +87,60 @@ In the error column of the second table, the value after `status →` is the cat
 
 **Slice-close condition for the matrix above:** every documented error must be exercised with its observed `type`, and every refusal confirmed not to have mutated data. The `urn:canchalibre:error:method-not-allowed` and `urn:canchalibre:error:not-found` fallbacks are exercised by S1 as part of this, which also closes T0.4's pending live error response.
 
+#### Inventory — S2 (Platform Administration & Core Organization)
+
+Frozen before implementation, as this section requires. Per architecture decision, Slice S2 is bounded to **Platform Administration (`ADMIN` and `SOPORTE`)**, delivering business onboarding and governance, branch approval inbox and supervision, and global user management. Owner-level branch asset management (operating hours, photos, courts) and customer catalog are deferred to subsequent slices.
+
+Full design, rationale, and review checklist are in [`docs/design/organization-endpoints.md`](design/organization-endpoints.md). Every `type` below comes from the catalog in [`docs/design/platform-error-model.md`](design/platform-error-model.md) §1.1; no endpoint may document a `type` outside it, and `about:blank` is never documented. Each documented error is registered as an explicit huma `Responses` entry with a per-error example.
+
+All routes are served under the `/api/v1` prefix. Every path parameter is a UUID.
+
+| Operation ID | Method and path | Actor | Requirements | AC | Idempotency |
+| --- | --- | --- | --- | --- | --- |
+| `createBusiness` | `POST /admin/businesses` | ADMIN | BE-ORG-01, BE-ACC-05 | AC-26, AC-43 | non-idempotent: creates a new business entity |
+| `listBusinesses` | `GET /admin/businesses` | ADMIN | BE-ORG-01 | AC-26 | idempotent |
+| `getBusiness` | `GET /admin/businesses/{businessId}` | ADMIN | BE-ORG-01, BE-ACC-05 | AC-26 | idempotent |
+| `updateBusiness` | `PATCH /admin/businesses/{businessId}` | ADMIN | BE-ORG-01 | AC-26 | idempotent |
+| `suspendBusiness` | `POST /admin/businesses/{businessId}/suspend` | ADMIN | BE-ORG-01, BE-ACC-07 | AC-19 | idempotent: repeated suspension preserves state |
+| `reactivateBusiness` | `POST /admin/businesses/{businessId}/reactivate` | ADMIN | BE-ORG-01, BE-ACC-07 | AC-19 | idempotent: repeated reactivation preserves state |
+| `archiveBusiness` | `DELETE /admin/businesses/{businessId}` | ADMIN | BE-ORG-06 | AC-40 | idempotent |
+| `unarchiveBusiness` | `POST /admin/businesses/{businessId}/unarchive` | ADMIN | BE-ORG-07 | AC-40 | idempotent |
+| `listBranchRequests` | `GET /admin/branch-requests` | ADMIN, SOPORTE | BE-ORG-02 | AC-25, AC-41 | idempotent |
+| `getBranchRequest` | `GET /admin/branch-requests/{requestId}` | ADMIN, SOPORTE | BE-ORG-02 | AC-25, AC-41 | idempotent |
+| `approveBranchRequest` | `POST /admin/branch-requests/{requestId}/approve` | ADMIN, SOPORTE | BE-ORG-02 | AC-25 | non-idempotent: advances review state |
+| `rejectBranchRequest` | `POST /admin/branch-requests/{requestId}/reject` | ADMIN, SOPORTE | BE-ORG-02 | AC-25 | non-idempotent: records rejection with reason |
+| `listAdminBranches` | `GET /admin/branches` | ADMIN, SOPORTE | BE-ORG-01, BE-ORG-02 | AC-26 | idempotent |
+| `suspendBranch` | `POST /admin/branches/{branchId}/suspend` | ADMIN | BE-ORG-01, BE-ACC-07 | AC-19 | idempotent |
+| `reactivateBranch` | `POST /admin/branches/{branchId}/reactivate` | ADMIN | BE-ORG-01, BE-ACC-07 | AC-19 | idempotent |
+| `listUsers` | `GET /admin/users` | ADMIN | BE-ACC-07 | AC-42 | idempotent |
+| `getUser` | `GET /admin/users/{userId}` | ADMIN | BE-ACC-07 | AC-42 | idempotent |
+| `suspendUser` | `POST /admin/users/{userId}/suspend` | ADMIN | BE-ACC-07 | AC-19 | idempotent |
+| `reactivateUser` | `POST /admin/users/{userId}/reactivate` | ADMIN | BE-ACC-07 | AC-19 | idempotent |
+
+| Operation ID | Request shape | Success response | Documented errors (`status` → `type`) |
+| --- | --- | --- | --- |
+| `createBusiness` | `{name, legal_name?, tax_id?, owner_emails?}` | `201` `{id, name, legal_name, tax_id, enabled, created_at, owners: [...]}` | `400` validation; `401` unauthenticated; `403` forbidden; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `listBusinesses` | query: `status?`, `search?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `422` validation; `500` internal |
+| `getBusiness` | none | `200` `{id, name, legal_name, tax_id, enabled, suspended_at, archived_at, created_at, owners: [...], branches: [...]}` | `401` unauthenticated; `403` forbidden; `404` not-found; `500` internal |
+| `updateBusiness` | `{name?, legal_name?, tax_id?}` | `200` `{id, name, legal_name, tax_id, enabled, suspended_at, archived_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `suspendBusiness` | `{reason}` | `200` `{id, suspended_at, enabled}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `reactivateBusiness` | empty body | `200` `{id, suspended_at: null, enabled}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
+| `archiveBusiness` | none | `204` empty body | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
+| `unarchiveBusiness` | empty body | `200` `{id, archived_at: null}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
+| `listBranchRequests` | query: `status?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `422` validation; `500` internal |
+| `getBranchRequest` | none | `200` `{id, branch_id, business_id, business_name, branch: {...}, status, submitted_by, submitted_at, reviewed_by, reviewed_at, rejection_reason, history: [...]}` | `401` unauthenticated; `403` forbidden; `404` not-found; `500` internal |
+| `approveBranchRequest` | empty body | `200` `{id, branch_id, status: "APPROVED", reviewed_by, reviewed_at}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
+| `rejectBranchRequest` | `{rejection_reason}` | `200` `{id, branch_id, status: "REJECTED", rejection_reason, reviewed_by, reviewed_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `listAdminBranches` | query: `business_id?`, `approval_status?`, `status?`, `city?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `422` validation; `500` internal |
+| `suspendBranch` | `{reason}` | `200` `{id, suspended_at}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `reactivateBranch` | empty body | `200` `{id, suspended_at: null}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
+| `listUsers` | query: `kind?`, `role?`, `status?`, `search?`, `page?`, `limit?` | `200` `{items: [...], total, page, limit}` | `400` validation; `401` unauthenticated; `403` forbidden; `422` validation; `500` internal |
+| `getUser` | none | `200` `{id, email, display_name, kind, platform_role, status, created_at, memberships: [...]}` | `401` unauthenticated; `403` forbidden; `404` not-found; `500` internal |
+| `suspendUser` | `{reason}` | `200` `{id, status: "SUSPENDED"}` | `400` validation; `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `415` unsupported-media-type; `422` validation; `500` internal |
+| `reactivateUser` | empty body | `200` `{id, status: "ACTIVE"}` | `401` unauthenticated; `403` forbidden; `404` not-found; `409` conflict; `500` internal |
+
+S2 pagination is one-based: `page` defaults to `1`, `limit` defaults to `20` and accepts `1..100`. Invalid numeric ranges or an overflowing calculated offset return `400 validation`; non-numeric query values return `422 validation`. Body-schema failures (missing required properties or wrong types) also return `422 validation`; present-but-invalid domain values return `400 validation`. Full semantics are in [Organization Endpoints](design/organization-endpoints.md#4-verification-and-contract-obligations).
+
 ### 5.3 Task level
 
 Each task starts with one RED test per rule it implements, written before the code, asserting every observable effect of that rule: response status, exact error `type`, and that rejected input left stored data and counters unchanged. Boundaries, error cases and concurrency cases named by the rule are covered. Work that cannot have a meaningful RED — passive documentation, unavailable runner — is stated as such with its reason and gets proportionate functional or structural verification instead.

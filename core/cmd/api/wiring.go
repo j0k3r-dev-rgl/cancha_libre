@@ -52,8 +52,8 @@ func newRouter(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*chi
 		},
 	)
 
-	// identity.Service already implements organization/core/ports.IdentityPort.
-	organizationService := organizationusecase.NewService(organizationRepo, identityService)
+	identityBridge := &organizationIdentityBridge{Service: identityService}
+	organizationService := organizationusecase.NewService(organizationRepo, identityBridge)
 
 	guard := authn.NewGuard([]byte(cfg.JWTSecret), identityRepo, organizationRepo)
 
@@ -128,6 +128,50 @@ func (b *identityScopeBridge) EnsureMembershipOnActivation(ctx context.Context, 
 	}
 	return err
 }
+
+// ListUserMemberships satisfies identity/ports.ScopePort.
+func (b *identityScopeBridge) ListUserMemberships(ctx context.Context, accountID string) ([]identitydomain.UserMembershipView, error) {
+	views, err := b.repo.ListUserMemberships(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]identitydomain.UserMembershipView, 0, len(views))
+	for _, v := range views {
+		out = append(out, identitydomain.UserMembershipView{
+			ID:           v.ID,
+			BusinessID:   v.BusinessID,
+			BusinessName: v.BusinessName,
+			BranchID:     v.BranchID,
+			BranchName:   v.BranchName,
+			Role:         v.Role,
+			CreatedAt:    v.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+// organizationIdentityBridge adapts identity.Service to organization/ports.IdentityPort.
+type organizationIdentityBridge struct {
+	*identityusecase.Service
+}
+
+func (b *organizationIdentityBridge) GetAccountsByIDs(ctx context.Context, accountIDs []string) ([]organizationdomain.BusinessOwnerView, error) {
+	views, err := b.Service.GetAccountViewsByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]organizationdomain.BusinessOwnerView, 0, len(views))
+	for _, v := range views {
+		out = append(out, organizationdomain.BusinessOwnerView{
+			AccountID:   v.ID,
+			Email:       v.Email,
+			DisplayName: v.DisplayName,
+			Status:      v.Status,
+		})
+	}
+	return out, nil
+}
+
 
 // loggingEmailSender is the non-delivering identity EmailSender acknowledged by
 // S1: the email transport is a separate prerequisite, so delivery is reported at

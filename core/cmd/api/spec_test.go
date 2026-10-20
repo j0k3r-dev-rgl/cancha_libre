@@ -36,9 +36,10 @@ type operationSpec struct {
 	path   string
 }
 
-// documentedOperations is the frozen S1 inventory. It must match
+// documentedOperations is the frozen S1 and S2 inventory. It must match
 // docs/endpoint-acceptance-criteria.md section 5.2 row by row.
 var documentedOperations = map[string]operationSpec{
+	// S1 Identity & Core Spine (17 operations)
 	"login":                   {http.MethodPost, "/api/v1/auth/login"},
 	"refresh":                 {http.MethodPost, "/api/v1/auth/refresh"},
 	"activateInvitation":      {http.MethodPost, "/api/v1/auth/invitations/activate"},
@@ -56,6 +57,27 @@ var documentedOperations = map[string]operationSpec{
 	"inviteMember":            {http.MethodPost, "/api/v1/businesses/{businessId}/invitations"},
 	"revokeMembership":        {http.MethodDelete, "/api/v1/businesses/{businessId}/memberships/{membershipId}"},
 	"revokeInvitation":        {http.MethodDelete, "/api/v1/businesses/{businessId}/invitations/{invitationId}"},
+
+	// S2 Platform Administration (19 operations)
+	"createBusiness":       {http.MethodPost, "/api/v1/admin/businesses"},
+	"listBusinesses":       {http.MethodGet, "/api/v1/admin/businesses"},
+	"getBusiness":          {http.MethodGet, "/api/v1/admin/businesses/{businessId}"},
+	"updateBusiness":       {http.MethodPatch, "/api/v1/admin/businesses/{businessId}"},
+	"suspendBusiness":      {http.MethodPost, "/api/v1/admin/businesses/{businessId}/suspend"},
+	"reactivateBusiness":   {http.MethodPost, "/api/v1/admin/businesses/{businessId}/reactivate"},
+	"archiveBusiness":      {http.MethodDelete, "/api/v1/admin/businesses/{businessId}"},
+	"unarchiveBusiness":    {http.MethodPost, "/api/v1/admin/businesses/{businessId}/unarchive"},
+	"listBranchRequests":   {http.MethodGet, "/api/v1/admin/branch-requests"},
+	"getBranchRequest":     {http.MethodGet, "/api/v1/admin/branch-requests/{requestId}"},
+	"approveBranchRequest": {http.MethodPost, "/api/v1/admin/branch-requests/{requestId}/approve"},
+	"rejectBranchRequest":  {http.MethodPost, "/api/v1/admin/branch-requests/{requestId}/reject"},
+	"listAdminBranches":    {http.MethodGet, "/api/v1/admin/branches"},
+	"suspendBranch":        {http.MethodPost, "/api/v1/admin/branches/{branchId}/suspend"},
+	"reactivateBranch":     {http.MethodPost, "/api/v1/admin/branches/{branchId}/reactivate"},
+	"listUsers":            {http.MethodGet, "/api/v1/admin/users"},
+	"getUser":              {http.MethodGet, "/api/v1/admin/users/{userId}"},
+	"suspendUser":          {http.MethodPost, "/api/v1/admin/users/{userId}/suspend"},
+	"reactivateUser":       {http.MethodPost, "/api/v1/admin/users/{userId}/reactivate"},
 }
 
 // documentedErrors lists, per operation, every documented error status and the
@@ -161,6 +183,149 @@ var documentedErrors = map[string]map[int][]string{
 		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
 		http.StatusForbidden:           {platformhttp.TypeForbidden},
 		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+
+	// S2 Platform Administration (19 operations)
+	"createBusiness": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"listBusinesses": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"getBusiness": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+	"updateBusiness": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"suspendBusiness": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"reactivateBusiness": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+	"archiveBusiness": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+	"unarchiveBusiness": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+	"listBranchRequests": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"getBranchRequest": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+	"approveBranchRequest": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+	"rejectBranchRequest": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"listAdminBranches": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"suspendBranch": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"reactivateBranch": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+	"listUsers": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"getUser": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+	},
+	"suspendUser": {
+		http.StatusBadRequest:          {platformhttp.TypeValidation},
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
+		http.StatusInternalServerError: {platformhttp.TypeInternal},
+		http.StatusUnprocessableEntity: {platformhttp.TypeValidation},
+	},
+	"reactivateUser": {
+		http.StatusUnauthorized:        {platformhttp.TypeUnauthenticated},
+		http.StatusForbidden:           {platformhttp.TypeForbidden},
+		http.StatusNotFound:            {platformhttp.TypeNotFound},
+		http.StatusConflict:            {platformhttp.TypeConflict},
 		http.StatusInternalServerError: {platformhttp.TypeInternal},
 	},
 }
@@ -340,7 +505,7 @@ func TestOpenAPISpecDeclaresFrozenInventory(t *testing.T) {
 		if documentedOperations[id].path != "" || systemOperations[id] {
 			continue
 		}
-		t.Fatalf("unexpected operation %q in the contract; the frozen S1 inventory has exactly 17 identity/organization operations", id)
+		t.Fatalf("unexpected operation %q in the contract; the frozen inventory has exactly %d identity/organization operations", id, len(documentedOperations))
 	}
 
 	inventoryCount := 0

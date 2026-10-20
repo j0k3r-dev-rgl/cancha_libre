@@ -34,7 +34,22 @@ type Repository interface {
 
 	RevokeSupportOperator(ctx context.Context, accountID string) error
 
+	ListUsers(ctx context.Context, filter UserFilter) ([]domain.UserSummary, int, error)
+	GetAccountDetail(ctx context.Context, accountID string) (domain.Account, error)
+	SuspendAccount(ctx context.Context, accountID string) error
+	ReactivateAccount(ctx context.Context, accountID string) error
+
 	AppendAudit(ctx context.Context, entry domain.AuditEntry) error
+}
+
+// UserFilter defines query parameters for the admin user listing.
+type UserFilter struct {
+	Kind   string
+	Role   string
+	Status string
+	Search string
+	Limit  int
+	Offset int
 }
 
 // ScopePort bridges schema_organization queries needed by identity use cases
@@ -43,6 +58,7 @@ type ScopePort interface {
 	ListAccountContexts(ctx context.Context, accountID string) ([]domain.ContextOption, error)
 	VerifyScope(ctx context.Context, accountID, businessID, branchID string) (actor.Role, error)
 	EnsureMembershipOnActivation(ctx context.Context, accountID, businessID string, branchID *string, role actor.Role) error
+	ListUserMemberships(ctx context.Context, accountID string) ([]domain.UserMembershipView, error)
 }
 
 // EmailSender dispatches work activation and password recovery messages. In S1 a

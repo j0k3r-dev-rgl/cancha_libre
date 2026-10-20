@@ -7,7 +7,12 @@
       "enabled": true,
       "branches": [
         { "key": "B1-CENTRAL", "name": "Central", "enabled": true },
-        { "key": "B1-NORTE", "name": "Norte", "enabled": true }
+        { "key": "B1-NORTE", "name": "Norte", "enabled": true },
+        {"key": "S2-ADMIN-APPROVE", "name": "S2 Admin Approve", "enabled": false, "approval_status": "PENDING_APPROVAL"},
+        {"key": "S2-ADMIN-REJECT", "name": "S2 Admin Reject", "enabled": false, "approval_status": "PENDING_APPROVAL"},
+        {"key": "S2-SUPPORT-APPROVE", "name": "S2 Support Approve", "enabled": false, "approval_status": "PENDING_APPROVAL"},
+        {"key": "S2-SUPPORT-REJECT", "name": "S2 Support Reject", "enabled": false, "approval_status": "PENDING_APPROVAL"},
+        {"key": "S2-REVIEW-RACE", "name": "S2 Review Race", "enabled": false, "approval_status": "PENDING_APPROVAL"}
       ]
     },
     {
@@ -50,6 +55,53 @@
     {
       "$comment": "PLAYER holds no membership: public browsing and own records only.",
       "email": "player@canchalibre.local"
+    }
+  ],
+  "branch_requests": [
+    {
+      "id": "019294f0-0000-7000-8000-000000000400",
+      "branch": "S2-ADMIN-APPROVE",
+      "submitted_by": "owner@canchalibre.local",
+      "submitted_at": "2026-01-01T10:00:00Z",
+      "status": "REJECTED",
+      "reviewed_by": "soporte@canchalibre.local",
+      "reviewed_at": "2026-01-02T10:00:00Z",
+      "rejection_reason": "Confirm street address"
+    },
+    {
+      "id": "019294f0-0000-7000-8000-000000000401",
+      "branch": "S2-ADMIN-APPROVE",
+      "submitted_by": "owner@canchalibre.local",
+      "submitted_at": "2026-01-03T10:01:00Z",
+      "status": "PENDING"
+    },
+    {
+      "id": "019294f0-0000-7000-8000-000000000402",
+      "branch": "S2-ADMIN-REJECT",
+      "submitted_by": "owner@canchalibre.local",
+      "submitted_at": "2026-01-03T10:02:00Z",
+      "status": "PENDING"
+    },
+    {
+      "id": "019294f0-0000-7000-8000-000000000403",
+      "branch": "S2-SUPPORT-APPROVE",
+      "submitted_by": "owner@canchalibre.local",
+      "submitted_at": "2026-01-03T10:03:00Z",
+      "status": "PENDING"
+    },
+    {
+      "id": "019294f0-0000-7000-8000-000000000404",
+      "branch": "S2-SUPPORT-REJECT",
+      "submitted_by": "owner@canchalibre.local",
+      "submitted_at": "2026-01-03T10:04:00Z",
+      "status": "PENDING"
+    },
+    {
+      "id": "019294f0-0000-7000-8000-000000000405",
+      "branch": "S2-REVIEW-RACE",
+      "submitted_by": "owner@canchalibre.local",
+      "submitted_at": "2026-01-03T10:05:00Z",
+      "status": "PENDING"
     }
   ],
   "refusalMatrix": [
